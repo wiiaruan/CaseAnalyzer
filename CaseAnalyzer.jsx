@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   Building2, AlertTriangle, Eye, TrendingUp, Swords, ChevronDown,
   ChevronRight, Flag, Users, Target, CheckCircle2, ArrowRight,
-  ShieldAlert, Lightbulb, MessageSquare,
+  ShieldAlert, Lightbulb, MessageSquare, Pencil,
   ClipboardList, ClipboardCheck, Gauge, FileText, Upload, Loader2, RotateCcw,
   Search as SearchIcon, Sparkles, AlertCircle, Save, Trash2,
   FolderOpen, Check, Users2
@@ -961,6 +961,151 @@ const TABS = [
 
 const STEPS = ["Reading the PDF", "Analyzing with Growth Activator"];
 
+/* ---------- Edit mode ---------- */
+const EDIT_ACCENT = "#d97706";
+
+const TAB_EDIT_KEYS = {
+  overview: ["meta", "overview", "rfi", "discovery", "stakeholders"],
+  pain: ["painHeadline", "pains"],
+  vision: ["vision"],
+  value: ["value"],
+  consensus: ["consensus"],
+  competitive: ["competitive"],
+  healthcheck: ["healthCheck"],
+};
+
+function setAtPath(obj, path, value) {
+  if (path.length === 0) return value;
+  const [head, ...rest] = path;
+  const clone = Array.isArray(obj) ? [...obj] : { ...obj };
+  clone[head] = setAtPath(obj?.[head], rest, value);
+  return clone;
+}
+
+const prettyKey = (k) =>
+  String(k)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/^./, (c) => c.toUpperCase());
+
+function EditField({ label, value, path, onChange }) {
+  if (typeof value === "boolean") {
+    return (
+      <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={value}
+          onChange={(e) => onChange(path, e.target.checked)}
+          className="accent-amber-500"
+        />
+        {label}
+      </label>
+    );
+  }
+  if (typeof value === "number") {
+    return (
+      <div>
+        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{label}</div>
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => onChange(path, Number(e.target.value))}
+          className="w-24 rounded border border-amber-300 bg-amber-50/60 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+        />
+      </div>
+    );
+  }
+  const text = value == null ? "" : String(value);
+  const rows = Math.min(6, Math.max(1, Math.ceil(text.length / 90)));
+  return (
+    <div>
+      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{label}</div>
+      <textarea
+        value={text}
+        rows={rows}
+        onChange={(e) => onChange(path, e.target.value)}
+        className="w-full rounded border border-amber-300 bg-amber-50/60 px-2 py-1.5 text-sm leading-snug resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"
+      />
+    </div>
+  );
+}
+
+function EditNode({ label, value, path, onChange, depth = 0 }) {
+  if (path[path.length - 1] === "src") {
+    return (
+      <div>
+        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{label}</div>
+        <select
+          value={value === "inferred" ? "inferred" : "doc"}
+          onChange={(e) => onChange(path, e.target.value)}
+          className="rounded border border-amber-300 bg-amber-50/60 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
+        >
+          <option value="doc">doc</option>
+          <option value="inferred">inferred</option>
+        </select>
+      </div>
+    );
+  }
+  if (value === null || value === undefined || typeof value !== "object") {
+    return <EditField label={label} value={value} path={path} onChange={onChange} />;
+  }
+  if (Array.isArray(value)) {
+    return (
+      <div className="space-y-2">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700">{label}</div>
+        {value.map((item, i) =>
+          item !== null && typeof item === "object" ? (
+            <div key={i} className="rounded-lg border border-amber-200 bg-white p-3 space-y-2.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                {label} · {i + 1}
+              </div>
+              {Object.entries(item).map(([k, v]) => (
+                <EditNode key={k} label={prettyKey(k)} value={v} path={[...path, i, k]} onChange={onChange} depth={depth + 1} />
+              ))}
+            </div>
+          ) : (
+            <EditField key={i} label={`${label} · ${i + 1}`} value={item} path={[...path, i]} onChange={onChange} />
+          )
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className={depth > 0 ? "rounded-lg border border-amber-100 bg-amber-50/30 p-2.5 space-y-2" : "space-y-2.5"}>
+      {depth > 0 && (
+        <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700">{label}</div>
+      )}
+      {Object.entries(value).map(([k, v]) => (
+        <EditNode key={k} label={prettyKey(k)} value={v} path={[...path, k]} onChange={onChange} depth={depth + 1} />
+      ))}
+    </div>
+  );
+}
+
+function TabEditor({ data, tabId, onChange }) {
+  const keys = (TAB_EDIT_KEYS[tabId] || []).filter((k) => data[k] !== undefined);
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border-2 border-amber-400 bg-amber-50 p-3 flex items-start gap-2.5 text-sm text-amber-900">
+        <Pencil size={16} className="shrink-0 mt-0.5 text-amber-600" />
+        <span>
+          <b>Edit mode is on.</b> Changes apply to the open case as you type — press <b>Save</b> in the
+          header to persist them to the shared library, or toggle Edit off to review the result.
+        </span>
+      </div>
+      {keys.map((k) => (
+        <div
+          key={k}
+          className="rounded-lg border border-amber-300 bg-white p-4 space-y-3"
+          style={{ borderLeftWidth: 4, borderLeftColor: EDIT_ACCENT }}
+        >
+          <div className="font-display text-base font-bold text-slate-900">{prettyKey(k)}</div>
+          <EditNode label={prettyKey(k)} value={data[k]} path={[k]} onChange={onChange} depth={0} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function CaseAnalyzer() {
   const [caseFile, setCaseFile] = useState(null);
   const [tab, setTab] = useState("overview");
@@ -971,6 +1116,9 @@ export default function CaseAnalyzer() {
   const [library, setLibrary] = useState([]);
   const [libLoading, setLibLoading] = useState(true);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
+  const [editMode, setEditMode] = useState(false);
+
+  const updateField = (path, value) => setCaseFile((prev) => setAtPath(prev, path, value));
 
   // Load the shared library once on mount.
   useEffect(() => {
@@ -1000,7 +1148,7 @@ export default function CaseAnalyzer() {
     setError(null);
     try {
       const cf = await fetchCase(id);
-      if (cf) { setCaseFile(cf); setTab("overview"); }
+      if (cf) { setCaseFile(cf); setTab("overview"); setEditMode(false); }
       else setError("That saved case could not be found (it may have been deleted by a teammate).");
     } catch (e) {
       setError("Could not open the case: " + (e?.message || String(e)));
@@ -1019,6 +1167,7 @@ export default function CaseAnalyzer() {
       const result = await analyzeCase(caseText);
       setProgress(2);
       setCaseFile(result);
+      setEditMode(false);
       setTab("overview");
     } catch (e) {
       console.error(e);
@@ -1050,6 +1199,7 @@ export default function CaseAnalyzer() {
       const result = await analyzeCase(caseText);
       setProgress(2);
       setCaseFile(result);
+      setEditMode(false);
       setTab("overview");
     } catch (e) {
       console.error(e);
@@ -1106,6 +1256,15 @@ export default function CaseAnalyzer() {
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <button
+                onClick={() => setEditMode((v) => !v)}
+                className={`flex items-center gap-1.5 text-xs font-semibold rounded-md px-2.5 py-1.5 ${
+                  editMode ? "text-white" : "text-slate-300 hover:text-white hover:bg-white/10"
+                }`}
+                style={editMode ? { background: EDIT_ACCENT } : undefined}
+              >
+                <Pencil size={13} /> {editMode ? "Editing" : "Edit"}
+              </button>
+              <button
                 onClick={handleSave}
                 disabled={saveState === "saving"}
                 className="flex items-center gap-1.5 text-xs font-semibold rounded-md px-2.5 py-1.5 text-white disabled:opacity-60"
@@ -1117,7 +1276,7 @@ export default function CaseAnalyzer() {
                 {saveState === "saved" ? "Saved" : "Save"}
               </button>
               <button
-                onClick={() => { setCaseFile(null); setProgress(0); setError(null); }}
+                onClick={() => { setCaseFile(null); setProgress(0); setError(null); setEditMode(false); }}
                 className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white rounded-md px-2.5 py-1.5 hover:bg-white/10"
               >
                 <RotateCcw size={13} /> New case
@@ -1145,8 +1304,18 @@ export default function CaseAnalyzer() {
         </nav>
       </header>
 
+      {editMode && (
+        <div className="text-center text-[11px] font-bold uppercase tracking-[0.2em] text-white py-1" style={{ background: EDIT_ACCENT }}>
+          Edit mode
+        </div>
+      )}
+
       <main className="max-w-5xl mx-auto px-4 py-6">
-        <Active data={caseFile} />
+        {editMode ? (
+          <TabEditor data={caseFile} tabId={tab} onChange={updateField} />
+        ) : (
+          <Active data={caseFile} />
+        )}
         <footer className="mt-8 pt-4 border-t border-slate-200 text-[11px] text-slate-400 flex items-start gap-2">
           <Flag size={11} className="text-amber-500 mt-0.5 shrink-0" />
           <span>
