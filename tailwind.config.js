@@ -2,7 +2,7 @@ export default {
   content: [
     "./index.html",
     "./main.jsx",
-    "./CaseAnalyzer.js",
+    "./CaseAnalyzer.jsx",
   ],
   theme: {
     extend: {},

@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import {
   Building2, AlertTriangle, Eye, TrendingUp, Swords, ChevronDown,
   ChevronRight, Flag, Users, Target, CheckCircle2, ArrowRight,
-  ShieldAlert, Lightbulb, FlaskConical, MessageSquareWarning,
-  MonitorPlay, ClipboardList, FileText, Upload, Loader2, RotateCcw,
+  ShieldAlert, Lightbulb, MessageSquare,
+  ClipboardList, ClipboardCheck, Gauge, FileText, Upload, Loader2, RotateCcw,
   Search as SearchIcon, Sparkles, AlertCircle, Save, Trash2,
   FolderOpen, Check, Users2
 } from "lucide-react";
@@ -244,7 +244,7 @@ function Overview({ data }) {
 
   return (
     <div className="space-y-6">
-      <SectionTitle icon={Building2} sub="The seller's briefing — everything needed to step into the role play">
+      <SectionTitle icon={Building2} sub="The seller's briefing — everything needed to understand the case">
         Case Overview
       </SectionTitle>
 
@@ -271,27 +271,6 @@ function Overview({ data }) {
         </div>
       )}
 
-      {/* Role-play setup */}
-      {ov.rolePlay && (ov.rolePlay.role?.value || ov.rolePlay.scenario?.value) && (
-        <div className="rounded-lg border-l-4 bg-white border border-slate-200 p-4 space-y-3" style={{ borderLeftColor: ACCENT }}>
-          <div className="flex items-center gap-2">
-            <MonitorPlay size={15} style={{ color: ACCENT }} />
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: ACCENT }}>Role-play setup</span>
-          </div>
-          {ov.rolePlay.role?.value && (
-            <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Your role</div>
-              <p className="text-sm text-slate-700 leading-snug mt-0.5"><Field f={ov.rolePlay.role} /></p></div>
-          )}
-          {ov.rolePlay.scenario?.value && (
-            <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Where it starts</div>
-              <p className="text-sm text-slate-700 leading-snug mt-0.5"><Field f={ov.rolePlay.scenario} /></p></div>
-          )}
-          {ov.rolePlay.objective?.value && (
-            <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Your objective</div>
-              <p className="text-sm text-slate-700 leading-snug mt-0.5"><Field f={ov.rolePlay.objective} /></p></div>
-          )}
-        </div>
-      )}
 
       {/* Stakeholders (personas + Power Model fused) */}
       {stakeholders.length > 0 && (
@@ -367,7 +346,7 @@ function Pain({ data }) {
   const [open, setOpen] = useState(0);
   return (
     <div className="space-y-4">
-      <SectionTitle icon={AlertTriangle} sub="Pain → Consequence → Business impact · criteria: Personal, Measurable, Negatively stated">
+      <SectionTitle icon={AlertTriangle} sub="Pain → Causes → Capabilities → Organizational impact · criteria: Personal, Measurable, Negatively stated">
         Customer Pain
       </SectionTitle>
 
@@ -375,8 +354,9 @@ function Pain({ data }) {
         const isOpen = open === i;
         const steps = [
           { label: "Pain", text: p.pain, cls: "bg-rose-50 border-rose-200", dot: "text-rose-600" },
-          { label: "Consequence", text: p.consequence, cls: "bg-orange-50 border-orange-200", dot: "text-orange-600" },
-          { label: "Business impact", text: p.impact, cls: "bg-red-50 border-red-300", dot: "text-red-700" },
+          { label: "Causes", text: p.causes, cls: "bg-amber-50 border-amber-200", dot: "text-amber-600" },
+          { label: "Capabilities", text: p.capabilities, cls: "bg-sky-50 border-sky-200", dot: "text-sky-600" },
+          { label: "Organizational impact", text: p.orgImpact, cls: "bg-red-50 border-red-300", dot: "text-red-700" },
         ];
         return (
           <div key={i} className="rounded-lg border border-slate-200 bg-white overflow-hidden">
@@ -403,6 +383,15 @@ function Pain({ data }) {
                     </div>
                   ))}
                 </div>
+                {p.affects?.length > 0 && (
+                  <div className="flex items-center flex-wrap gap-1.5 mt-3">
+                    <Users2 size={13} className="text-slate-400 shrink-0" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Also impacts:</span>
+                    {p.affects.map((a, k) => (
+                      <span key={k} className="rounded-full bg-slate-100 text-slate-600 text-[11px] px-2 py-0.5">{a}</span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -511,22 +500,121 @@ function Value({ data }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <FlaskConical size={15} className="text-slate-500" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Proof events — Collaboration plan</span>
-        </div>
-        <ul className="space-y-2">
-          {(v.proofEvents || []).map((e, i) => (
-            <li key={i} className="flex items-center gap-3 text-sm text-slate-700">
-              <span className="rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 shrink-0 w-20 text-center">
-                {e.aspect}
-              </span>
-              {e.event}
-            </li>
-          ))}
-        </ul>
+/* ---------- Consensus ---------- */
+function Consensus({ data }) {
+  const c = data.consensus || {};
+  const phaseCls = {
+    Solution: "bg-sky-50 text-sky-700",
+    Transition: "bg-violet-50 text-violet-700",
+    Financial: "bg-emerald-50 text-emerald-700",
+  };
+  return (
+    <div className="space-y-4">
+      <SectionTitle icon={ClipboardCheck} sub="Collaboration plan · cocreated with Power across Solution, Transition and Financial">
+        Consensus
+      </SectionTitle>
+
+      {c.summary && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700">{c.summary}</div>
+      )}
+
+      <div className="rounded-lg border border-slate-200 bg-white p-4 overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
+              <th className="py-2 pr-3 font-semibold">Event</th>
+              <th className="py-2 pr-3 font-semibold">Phase</th>
+              <th className="py-2 pr-3 font-semibold">Week of</th>
+              <th className="py-2 pr-3 font-semibold">Responsible</th>
+              <th className="py-2 font-semibold">Go/No-Go</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(c.events || []).map((e, i) => (
+              <tr key={i} className="border-b border-slate-50 last:border-0 align-top">
+                <td className="py-2 pr-3 font-medium text-slate-800">{e.event}<SrcChip src={e.src} /></td>
+                <td className="py-2 pr-3">
+                  <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${phaseCls[e.phase] || "bg-slate-100 text-slate-600"}`}>
+                    {e.phase}
+                  </span>
+                </td>
+                <td className="py-2 pr-3 text-slate-600">{e.weekOf}</td>
+                <td className="py-2 pr-3 text-slate-600">{e.responsible}</td>
+                <td className="py-2">
+                  {e.goNoGo && (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">
+                      <Flag size={10} /> Go/No-Go
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Value Grid ---------- */
+function ValueGrid({ items }) {
+  const pts = (items || []).filter((d) => typeof d.uniqueness === "number" && typeof d.customerValue === "number");
+  if (pts.length === 0) return null;
+
+  const left = 46, right = 314, top = 14, bottom = 240;
+  const x = (cv) => left + (Math.max(0, Math.min(10, cv)) / 10) * (right - left);
+  const y = (uq) => bottom - (Math.max(0, Math.min(10, uq)) / 10) * (bottom - top);
+  const midX = (left + right) / 2;
+  const midY = (top + bottom) / 2;
+
+  const quadrants = [
+    { label: "Cool stuff", x: left + 4, y: top + 14, anchor: "start" },
+    { label: "Differentiators", x: right - 4, y: top + 14, anchor: "end" },
+    { label: "Trivial", x: left + 4, y: bottom - 6, anchor: "start" },
+    { label: "Core", x: right - 4, y: bottom - 6, anchor: "end" },
+  ];
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Value Grid — uniqueness vs. customer value</div>
+      <svg viewBox="0 0 340 300" className="w-full max-w-md mx-auto" role="img" aria-label="Value grid plotting differentiators by uniqueness and customer value">
+        <rect x={left} y={top} width={right - left} height={bottom - top} fill="#f8fafc" stroke="#e2e8f0" />
+        <line x1={midX} y1={top} x2={midX} y2={bottom} stroke="#e2e8f0" strokeWidth="1" />
+        <line x1={left} y1={midY} x2={right} y2={midY} stroke="#e2e8f0" strokeWidth="1" />
+        {quadrants.map((q, i) => (
+          <text key={i} x={q.x} y={q.y} textAnchor={q.anchor} className="fill-slate-400" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            {q.label}
+          </text>
+        ))}
+        <text x={(left + right) / 2} y={bottom + 22} textAnchor="middle" className="fill-slate-500" style={{ fontSize: 10, fontWeight: 600 }}>
+          Customer value →
+        </text>
+        <text x={left - 34} y={(top + bottom) / 2} textAnchor="middle" className="fill-slate-500" style={{ fontSize: 10, fontWeight: 600 }} transform={`rotate(-90 ${left - 34} ${(top + bottom) / 2})`}>
+          Uniqueness →
+        </text>
+        {pts.map((d, i) => {
+          const cx = x(d.customerValue), cy = y(d.uniqueness);
+          const r = i === 0 ? 10 : 8;
+          return (
+            <g key={i}>
+              <circle cx={cx} cy={cy} r={r} fill={ACCENT} stroke="#fff" strokeWidth={i === 0 ? 2 : 1.5} />
+              <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" className="fill-white" style={{ fontSize: 10, fontWeight: 700 }}>
+                {i + 1}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 justify-center mt-2">
+        {pts.map((d, i) => (
+          <span key={i} className="text-[11px] text-slate-500">
+            <span className="font-bold" style={{ color: ACCENT }}>{i + 1}</span> {d.title}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -548,6 +636,8 @@ function Competitive({ data }) {
         </div>
       )}
 
+      <ValueGrid items={c.differentiators} />
+
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Lightbulb size={15} style={{ color: ACCENT }} />
@@ -557,6 +647,7 @@ function Competitive({ data }) {
           {(c.differentiators || []).map((d, i) => (
             <div key={i} className="rounded-lg border bg-white p-4" style={{ borderColor: i === 0 ? ACCENT : "#e2e8f0", borderWidth: i === 0 ? 2 : 1 }}>
               <div className="font-semibold text-slate-900 text-sm">
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-white text-[10px] font-bold mr-1.5 align-middle" style={{ background: ACCENT }}>{i + 1}</span>
                 {d.title}
                 {i === 0 && (
                   <span className="ml-2 rounded-full text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 text-white" style={{ background: ACCENT }}>
@@ -584,7 +675,7 @@ function Competitive({ data }) {
 
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <MessageSquareWarning size={15} className="text-slate-500" />
+          <MessageSquare size={15} className="text-slate-500" />
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             Objection handling — Acknowledge · Question · Position · Check
           </span>
@@ -617,6 +708,63 @@ function Competitive({ data }) {
   );
 }
 
+/* ---------- Health Check ---------- */
+const HEALTH_VITALS = [
+  { key: "pain", label: "Pain" },
+  { key: "power", label: "Power" },
+  { key: "vision", label: "Vision" },
+  { key: "value", label: "Value" },
+  { key: "consensus", label: "Consensus" },
+];
+
+function HealthMeter({ score }) {
+  const s = Math.max(0, Math.min(6, score || 0));
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex gap-1">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="w-5 h-2.5 rounded-sm"
+            style={{ background: i < s ? ACCENT : "#e2e8f0" }}
+          />
+        ))}
+      </div>
+      <span className="text-sm font-bold text-slate-800 tabular-nums">{s}/6</span>
+    </div>
+  );
+}
+
+function HealthCheck({ data }) {
+  const hc = data.healthCheck || {};
+  return (
+    <div className="space-y-4">
+      <SectionTitle icon={Gauge} sub="Opportunity Health Check · scored only on what this document evidences about the sales process">
+        Health Check
+      </SectionTitle>
+
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 leading-relaxed">
+        A case briefing rarely documents live deal history — low scores here are expected and reflect the document, not a judgment on the opportunity. Use this to spot what to go verify with the customer.
+      </div>
+
+      <div className="space-y-3">
+        {HEALTH_VITALS.map(({ key, label }) => {
+          const v = hc[key] || {};
+          return (
+            <div key={key} className="rounded-lg border border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <span className="font-semibold text-slate-900 text-sm w-24 shrink-0">{label}</span>
+                <HealthMeter score={v.score} />
+              </div>
+              {v.rationale && <p className="text-sm text-slate-600 mt-2 leading-snug">{v.rationale}</p>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Upload screen ---------- */
 function UploadScreen({ onFile, onText, busy, progress, error, library, onOpen, onDelete, libLoading }) {
   const inputRef = useRef(null);
@@ -644,8 +792,9 @@ function UploadScreen({ onFile, onText, busy, progress, error, library, onOpen, 
           </div>
           <h1 className="font-display text-4xl font-bold text-white tracking-tight">Case Analyzer</h1>
           <p className="text-slate-400 text-sm mt-3 leading-relaxed">
-            Drop a customer case PDF. Claude reads it and builds the pain chains,
-            customer vision, quantified value and competitive positioning.
+            Drop a customer case PDF and get a Growth Activator briefing: pain
+            chains, vision, quantified value, competitive positioning and an
+            opportunity health check.
           </p>
         </div>
 
@@ -805,7 +954,9 @@ const TABS = [
   { id: "pain", label: "Pain", icon: AlertTriangle, comp: Pain },
   { id: "vision", label: "Vision", icon: Eye, comp: Vision },
   { id: "value", label: "Value", icon: TrendingUp, comp: Value },
+  { id: "consensus", label: "Consensus", icon: ClipboardCheck, comp: Consensus },
   { id: "competitive", label: "Competitive", icon: Swords, comp: Competitive },
+  { id: "healthcheck", label: "Health Check", icon: Gauge, comp: HealthCheck },
 ];
 
 const STEPS = ["Reading the PDF", "Analyzing with Growth Activator"];

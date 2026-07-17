@@ -12,11 +12,30 @@ app.use(express.json({ limit: "50mb" }));
 const EXTRACTION_PROMPT = `You are a sales-enablement analyst at Milestone Systems (open-platform VMS: XProtect, BriefCam analytics, Arcules cloud). Analyse the customer case below using the Growth Activator methodology and return ONE JSON object.
 
 METHODOLOGY:
-- Pain must be chained Pain -> Consequence -> Business impact. Criteria: Personal, Measurable, Negatively stated. Categories: "Compliance" | "Too high / increasing" | "Too low / decreasing" | "Missed opportunity". Each pain has an OWNER.
-- Key players: Focus = Solution|Transition|Financial; Influence = High|Medium|Low.
+- Pain follows Milestone's Validation Communication structure: Pain -> Causes -> Capabilities -> Organizational impact. Criteria for the pain itself: Personal, Measurable, Negatively stated. Each pain has an OWNER. Causes are the underlying reasons for the pain — never phrase as "they lack X" or "they need X". Capabilities are Issue/Action/Value statements addressing the cause and must NOT name specific products; capabilities must reuse the specific mechanism named in causes — a capability generic enough to fit any cause is wrong. Organizational impact states what is impacted, who owns it, and the link to company strategy.
+  category: pick by the SHAPE of the claim, not its topic — "Compliance" = tied to a regulation/audit/mandate; "Too high / increasing" = a negative metric that is growing; "Too low / decreasing" = a positive metric that is shrinking; "Missed opportunity" = a gain being forfeited, not an active problem.
+- Key players: Focus = Solution|Transition|Financial; Influence = High|Medium|Low. focus: "Solution" = evaluates or will use the capability directly; "Transition" = owns migration/implementation risk; "Financial" = owns budget or ROI accountability. Infer from the person's role and responsibilities, not their seniority.
 - Vision = how the CUSTOMER sees THEMSELVES using the capabilities (their future state, not a pitch).
 - Value = quantified drivers + Value Statements (Issue/Action/Value/Check).
-- Competitive = lead with unique differentiators, prove parity elsewhere; objections via Acknowledge/Question/Position/Check.
+- Consensus = Collaboration Plan: events across Solution/Transition/Financial phases, cocreated with Power, each with an owner and timing; mark Go/No-Go milestones where relevant.
+- Competitive = Value Grid: every differentiator scores uniqueness (0-10, vs the named competitor) and customerValue (0-10); differentiators[0] must score high on both (the "Differentiators" quadrant — high uniqueness + high value). Lead with unique differentiators, prove parity elsewhere; objections via Acknowledge/Question/Position/Check.
+- Pain flow: each pain lists 1-3 other stakeholder roles (from the stakeholders list, or plausible roles) whose work is also impacted — one person's pain is often another's cause (Milestone's Pain Flow tool).
+- meta.stage is exactly one of: "Investigate" | "Develop" | "Propose" | "Negotiate" | "Ensure Procurement" (Milestone's Salesforce buying-process stages) — pick the closest match for where this case sits in the sales cycle.
+- Opportunity Health Check: score PAIN, POWER, VISION, VALUE, CONSENSUS 0-6 using Milestone's rubric below, based ONLY on what THIS DOCUMENT evidences about the sales process itself (not the customer's business situation). A case briefing rarely documents live deal history — most scores will be 0-2. Do NOT invent meetings, agreements or collaboration the document doesn't describe.
+  PAIN: 0 none·1 admitted·2 documented pain+causes confirmed·3 discussed with power·4 pain flow explored org-wide·5 power committed to a time-based reason to act·6 power confirms link to strategy.
+  POWER: 0 not identified·1 potential key players identified·2 power identified·3 access to power documented·4 decision process/criteria confirmed by power·5 collaboration plan started with power·6 power agreed to move forward.
+  VISION: 0 none·1 discussed with contact·2 co-creation started with contact·3 co-creation started with power·4 implementation plan approved by power·5 proof accepted by power·6 proof approved by power.
+  VALUE: 0 none·1 discussed with contact·2 documented value confirmed by contact·3 discussion started with sponsor·4 power accepts value of differentiated solution·5 success criteria agreed with power·6 business case jointly developed.
+  CONSENSUS: 0 no plan·1 plan co-created with power·2 agreement on pains from all in power·3 agreement on vision from all in power·4 agreement on differentiated solution from all power·5 agreement on business case/proposal from all in power·6 agreement on commercial/legal terms.
+
+SPECIFICITY: every pain/cause/capability/orgImpact/value string must anchor to a concrete noun from the document or a realistic inferred one — a system name, a number, a role, a metric, a location. Never a generic phrase ("improves efficiency", "streamlines operations", "enhances security") without saying what improves and by roughly how much. If a sentence would read the same for any customer in any industry, rewrite it.
+
+CALIBRATION EXAMPLE (match this level of specificity and register — do not reuse its content):
+  pain: "The Director of Security cannot approve access-list changes without physically visiting each site, delaying critical revocations by up to 48 hours."
+  causes: "Card-access management is siloed per building with no centralized directory sync between sites."
+  capabilities: "A unified access-management layer lets one administrator update multi-site permissions from a single console in minutes."
+  orgImpact: "Security operations owns this; delayed revocations create an audit-flagged compliance exposure with the risk and compliance team."
+  Value statement — issue: "You mentioned that 80% of these incidents involve aggression directed at staff, driving high turnover — estimated at $2M+ in rehiring costs." action: "Imagine if analytics could detect escalating aggression before it turns physical." value: "This directly reduces turnover and the associated $2M annual cost." check: "How does that resonate with your team?"
 
 PROVENANCE: every field with a "src" key = "doc" if the document states/implies it, else "inferred". NEVER leave a field empty. If missing, infer a value faithful to the context (industry, scale, tech, regulation, goals) and mark it "inferred". Inferred numbers are realistic ranges.
 
@@ -25,8 +44,7 @@ Return ONLY this JSON (no markdown, no commentary):
  "meta":{"customer":"","industry":"","stage":"","competitor":"","docType":""},
  "overview":{
    "summary":{"value":"","src":"doc"},
-   "snapshot":[{"label":"","value":"","src":"doc"}],
-   "rolePlay":{"role":{"value":"","src":"doc"},"scenario":{"value":"","src":"doc"},"objective":{"value":"","src":"doc"}}
+   "snapshot":[{"label":"","value":"","src":"doc"}]
  },
  "rfi":{
    "intro":{"value":"","src":"doc"},
@@ -34,23 +52,24 @@ Return ONLY this JSON (no markdown, no commentary):
  },
  "discovery":{"statements":[{"value":"","src":"doc"}],"competitorAlert":{"value":"","src":"doc"}},
  "stakeholders":[{"name":"","title":"","focus":"","influence":"","cares":["",""],"src":"doc"}],
- "pains":[{"title":"","category":"","owner":"","pain":"","consequence":"","impact":"","src":"doc"}],
+ "pains":[{"title":"","category":"","owner":"","pain":"","causes":"","capabilities":"","orgImpact":"","affects":["",""],"src":"doc"}],
  "painHeadline":"",
  "vision":{"items":[{"title":"","detail":"","src":"doc"}],"playback":""},
- "value":{"drivers":[{"driver":"","mechanism":"","impact":"","src":"doc"}],"statements":[{"name":"","issue":"","action":"","value":"","check":""}],"proofEvents":[{"event":"","aspect":""}]},
- "competitive":{"narrative":"","differentiators":[{"title":"","detail":""}],"parity":[""],"objections":[{"objection":"","acknowledge":"","question":"","position":"","check":""}],"redFlags":[""]}
+ "value":{"drivers":[{"driver":"","mechanism":"","impact":"","src":"doc"}],"statements":[{"name":"","issue":"","action":"","value":"","check":""}]},
+ "consensus":{"summary":"","events":[{"event":"","phase":"Solution|Transition|Financial","weekOf":"","responsible":"","goNoGo":false,"src":"doc"}]},
+ "competitive":{"narrative":"","differentiators":[{"title":"","detail":"","uniqueness":0,"customerValue":0}],"parity":[""],"objections":[{"objection":"","acknowledge":"","question":"","position":"","check":""}],"redFlags":[""]},
+ "healthCheck":{"pain":{"score":0,"rationale":""},"power":{"score":0,"rationale":""},"vision":{"score":0,"rationale":""},"value":{"score":0,"rationale":""},"consensus":{"score":0,"rationale":""}}
 }
 
 CASE OVERVIEW (the seller's SCENARIO BRIEFING — describe the situation, do NOT diagnose it):
 This section only sets the stage. The seller must DISCOVER the pains, vision, value and positioning themselves in the other sections — so the Overview must NOT contain pain analysis, business impact, quantified value, competitive strategy, or any "answer". Facts of the scenario = yes; interpretations/findings = no.
 - overview.summary: a 3-4 sentence narrative situating the case — who the customer is, why they're evaluating now (their stated goal), and where we are in the sales cycle. Neutral framing, no pain/impact analysis.
 - overview.snapshot: 6-10 hard facts about the CURRENT situation as label/value cards (current system, scale, technology, constraints, budget/timeline if known). Raw facts only — the material the seller will later mine for pains. Infer realistic values where absent.
-- overview.rolePlay: the practice setup. role = who the seller plays; scenario = where the activity starts; objective = what they must achieve in the exercise. Derive from the document; infer a sensible framing if none.
 - stakeholders: 3-6 people the seller will engage. For each: name (or role if unnamed), title, Power-Model focus (Solution|Transition|Financial), influence (High|Medium|Low), and "cares" (2-3 neutral bullets on what matters to that person in their job). Do NOT list their pain points and do NOT give tips on how to win them — the seller discovers those. Infer plausible stakeholders for the industry if the document names none.
 
-REQUIREMENTS: rfi.sections mirror the document's own numbering/titles (e.g. "2.7 Degraded Mode") and hold only the facts of each requirement; mark hard requirements critical:true. Do NOT add a Milestone response in the Overview. 5-6 pains. 6-8 vision items. 5-6 value drivers with figures. exactly 3 value statements (action starts "Imagine…"/"Consider…"). 4-5 proof events tagged Solution/Transition/Financial. differentiators[0] is the demo centerpiece (solves the hardest requirement). 2 fully-worked objections. 3 red flags. If no competitor is named, infer the most likely one.
+REQUIREMENTS: rfi.sections mirror the document's own numbering/titles (e.g. "2.7 Degraded Mode") and hold only the facts of each requirement; mark hard requirements critical:true. Do NOT add a Milestone response in the Overview. 5-6 pains. 6-8 vision items. 5-6 value drivers with figures. exactly 3 value statements (action starts "Imagine…"/"Consider…"). 4-6 collaboration-plan events spanning Solution/Transition/Financial phases, at least one marked goNoGo:true. differentiators[0] is the demo centerpiece (solves the hardest requirement, uniqueness 8-10 and customerValue 8-10). pains[].affects is empty only if the case genuinely has one isolated stakeholder. 2 fully-worked objections. 3 red flags. If no competitor is named, infer the most likely one. healthCheck scores are always src:"doc"-grade judgment calls, not inferred facts — each rationale is one sentence citing what is (or isn't) evidenced in the document.
 
-BE CONCISE: keep every string under 30 words. Summaries and "answer" fields under 25 words. This keeps the JSON compact — do not exceed the output budget or the JSON will be cut off. Output the JSON and nothing after it.
+WORD BUDGETS (compact ≠ vague — use the budget to be specific, don't pad to fill it, don't cut a concrete detail to save words): titles, labels, category names, discovery statements ≤ 15 words. summary, painHeadline, narrative, healthCheck rationale, rfi section summaries ≤ 30 words. pain-chain fields (pain/causes/capabilities/orgImpact), value statement fields (issue/action/value/check), objection fields (acknowledge/question/position/check), differentiator/red-flag detail ≤ 40 words. This keeps the JSON within budget — do not exceed these caps or the JSON will be cut off. Output the JSON and nothing after it.
 
 CUSTOMER CASE:
 `;
@@ -129,6 +148,7 @@ async function analyzeCase(caseText) {
       headers: {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
