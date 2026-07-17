@@ -1,7 +1,13 @@
 import sqlite3 from "sqlite3";
 import { promisify } from "util";
+import { mkdirSync } from "fs";
+import { dirname } from "path";
 
-const db = new sqlite3.Database("./cases.db");
+// On Railway, set DB_PATH to a file on the attached volume (e.g. /data/cases.db)
+// so saved cases survive redeploys; locally it defaults to ./cases.db.
+const DB_PATH = process.env.DB_PATH || "./cases.db";
+try { mkdirSync(dirname(DB_PATH), { recursive: true }); } catch {}
+const db = new sqlite3.Database(DB_PATH);
 
 // Promisify callbacks
 const dbRun = promisify(db.run.bind(db));

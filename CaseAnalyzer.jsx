@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   Building2, AlertTriangle, Eye, TrendingUp, Swords, ChevronDown,
   ChevronRight, Flag, Users, Target, CheckCircle2, ArrowRight,
-  ShieldAlert, Lightbulb, MessageSquare, Pencil,
+  ShieldAlert, Lightbulb, MessageSquare, Pencil, Download, FileUp,
   ClipboardList, ClipboardCheck, Gauge, FileText, Upload, Loader2, RotateCcw,
   Search as SearchIcon, Sparkles, AlertCircle, Save, Trash2,
   FolderOpen, Check, Users2
@@ -119,6 +119,87 @@ async function analyzeCase(caseText) {
   } catch (e) {
     throw new Error("Analysis failed: " + e.message);
   }
+}
+
+/* ================================================================
+   ██  EXPORT / IMPORT (schema-versioned)
+   ================================================================ */
+const SCHEMA_VERSION = 3;
+
+// Accepts a raw parsed JSON — either a versioned export envelope
+// ({app, schemaVersion, caseFile}) or a bare caseFile from any prior
+// schema — and normalizes it to the current shape.
+function migrateCaseFile(raw) {
+  if (!raw || typeof raw !== "object") throw new Error("Not a valid case file.");
+  const cf = raw.caseFile && typeof raw.caseFile === "object" ? { ...raw.caseFile } : { ...raw };
+  if (!cf.meta || typeof cf.meta !== "object") {
+    throw new Error("This JSON does not look like a CaseAnalyzer export (missing meta).");
+  }
+
+  // v1 pains used pain/consequence/impact; v2+ use pain/causes/capabilities/orgImpact.
+  cf.pains = (cf.pains || []).map((p) => {
+    const n = { ...p };
+    if (n.causes === undefined && n.consequence !== undefined) n.causes = n.consequence;
+    if (n.orgImpact === undefined && n.impact !== undefined) n.orgImpact = n.impact;
+    if (n.capabilities === undefined) n.capabilities = "";
+    if (!Array.isArray(n.affects)) n.affects = [];
+    delete n.consequence;
+    delete n.impact;
+    return n;
+  });
+
+  // v1 kept proof events under value; v2+ moved them to the consensus plan.
+  if (!cf.consensus && cf.value?.proofEvents?.length) {
+    cf.consensus = {
+      summary: "",
+      events: cf.value.proofEvents.map((e) => ({
+        event: e.event || "",
+        phase: e.aspect || "Solution",
+        weekOf: "",
+        responsible: "",
+        goNoGo: false,
+        src: "doc",
+      })),
+    };
+  }
+  if (cf.value?.proofEvents) {
+    cf.value = { ...cf.value };
+    delete cf.value.proofEvents;
+  }
+
+  // Sections added over time — tolerate their absence (tabs render empty states).
+  if (!cf.vision) cf.vision = { items: [], playback: "" };
+  if (!cf.competitive) cf.competitive = { narrative: "", differentiators: [], parity: [], objections: [], redFlags: [] };
+
+  // v1 overview had a rolePlay block — dropped in v2.
+  if (cf.overview?.rolePlay) {
+    cf.overview = { ...cf.overview };
+    delete cf.overview.rolePlay;
+  }
+  return cf;
+}
+
+function exportCaseFile(caseFile) {
+  const envelope = {
+    app: "CaseAnalyzer",
+    schemaVersion: SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    caseFile,
+  };
+  const slug = (caseFile?.meta?.customer || "case")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+  const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `caseanalyzer-${slug}-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /* ================================================================
@@ -766,8 +847,9 @@ function HealthCheck({ data }) {
 }
 
 /* ---------- Upload screen ---------- */
-function UploadScreen({ onFile, onText, busy, progress, error, library, onOpen, onDelete, libLoading }) {
+function UploadScreen({ onFile, onText, onImport, busy, progress, error, library, onOpen, onDelete, libLoading }) {
   const inputRef = useRef(null);
+  const importRef = useRef(null);
   const [drag, setDrag] = useState(false);
   const [pasteMode, setPasteMode] = useState(false);
   const [text, setText] = useState("");
@@ -799,32 +881,7 @@ function UploadScreen({ onFile, onText, busy, progress, error, library, onOpen, 
         </div>
 
         {busy ? (
-          <div className="rounded-xl bg-white/5 border border-white/10 p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <Loader2 size={18} className="animate-spin" style={{ color: ACCENT }} />
-              <span className="text-white font-medium text-sm">Analyzing the case…</span>
-            </div>
-            <div className="space-y-2.5">
-              {STEPS.map((label, i) => {
-                const done = progress > i;
-                const active = progress === i;
-                return (
-                  <div key={label} className="flex items-center gap-2.5 text-sm">
-                    {done ? (
-                      <CheckCircle2 size={15} className="shrink-0" style={{ color: ACCENT }} />
-                    ) : active ? (
-                      <Loader2 size={15} className="animate-spin text-slate-400 shrink-0" />
-                    ) : (
-                      <div className="w-[15px] h-[15px] rounded-full border border-white/20 shrink-0" />
-                    )}
-                    <span className={done ? "text-slate-300" : active ? "text-white" : "text-slate-600"}>
-                      {label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <AnalysisProgress phase={progress} />
         ) : pasteMode ? (
           <div className="rounded-xl bg-white/5 border border-white/10 p-4">
             <textarea
@@ -876,12 +933,27 @@ function UploadScreen({ onFile, onText, busy, progress, error, library, onOpen, 
         )}
 
         {!busy && !pasteMode && (
-          <button
-            onClick={() => setPasteMode(true)}
-            className="mx-auto mt-3 block text-xs font-medium text-slate-400 hover:text-white"
-          >
-            or paste the case text instead →
-          </button>
+          <div className="mt-3 flex items-center justify-center gap-5">
+            <button
+              onClick={() => setPasteMode(true)}
+              className="text-xs font-medium text-slate-400 hover:text-white"
+            >
+              or paste the case text instead →
+            </button>
+            <button
+              onClick={() => importRef.current?.click()}
+              className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-white"
+            >
+              <FileUp size={12} /> import a case export (.json)
+            </button>
+            <input
+              ref={importRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onImport(f); e.target.value = ""; }}
+            />
+          </div>
         )}
 
         {error && (
@@ -959,7 +1031,57 @@ const TABS = [
   { id: "healthcheck", label: "Health Check", icon: Gauge, comp: HealthCheck },
 ];
 
-const STEPS = ["Reading the PDF", "Analyzing with Growth Activator"];
+/* ---------- Analysis progress ---------- */
+function AnalysisProgress({ phase }) {
+  const [now, setNow] = useState(Date.now());
+  const startRef = useRef(Date.now());
+  const phase1Ref = useRef(null);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (phase >= 1 && phase1Ref.current === null) phase1Ref.current = Date.now();
+
+  const elapsed = Math.max(0, Math.floor((now - startRef.current) / 1000));
+  let pct, stage;
+  if (phase === 0) {
+    pct = Math.min(4, elapsed + 1);
+    stage = "Extracting text from the PDF";
+  } else {
+    // The model call is a single long request, so progress is estimated
+    // from elapsed time (asymptotic toward 98% until the response lands).
+    const t1 = Math.max(0, (now - (phase1Ref.current ?? now)) / 1000);
+    pct = Math.min(98, Math.round(5 + 93 * (1 - Math.exp(-t1 / 90))));
+    stage =
+      pct < 20 ? "Reading the case & identifying the vertical" :
+      pct < 40 ? "Mapping stakeholders & building pain chains" :
+      pct < 60 ? "Quantifying value & drafting the collaboration plan" :
+      pct < 80 ? "Competitive positioning & opportunity health check" :
+      "Assembling the briefing — deep analysis can take a few minutes";
+  }
+  const mm = Math.floor(elapsed / 60);
+  const ss = String(elapsed % 60).padStart(2, "0");
+
+  return (
+    <div className="rounded-xl bg-white/5 border border-white/10 p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <Loader2 size={18} className="animate-spin shrink-0" style={{ color: ACCENT }} />
+        <span className="text-white font-medium text-sm flex-1">Analyzing the case…</span>
+        <span className="font-display text-2xl font-bold text-white tabular-nums">{pct}%</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-1000 ease-linear"
+          style={{ width: `${pct}%`, background: ACCENT }}
+        />
+      </div>
+      <div className="flex items-center justify-between mt-3 text-xs">
+        <span className="text-slate-300">{stage}</span>
+        <span className="text-slate-500 tabular-nums shrink-0 ml-3">{mm}:{ss}</span>
+      </div>
+    </div>
+  );
+}
 
 /* ---------- Edit mode ---------- */
 const EDIT_ACCENT = "#d97706";
@@ -1159,6 +1281,19 @@ export default function CaseAnalyzer() {
     try { setLibrary(await deleteCase(id)); } catch (e) { console.error(e); }
   };
 
+  const handleImport = async (file) => {
+    setError(null);
+    try {
+      const parsed = JSON.parse(await file.text());
+      const cf = migrateCaseFile(parsed);
+      setCaseFile(cf);
+      setTab("overview");
+      setEditMode(false);
+    } catch (e) {
+      setError("Import failed: " + (e?.message || String(e)));
+    }
+  };
+
   const analyzeText = async (caseText) => {
     setBusy(true);
     setError(null);
@@ -1222,7 +1357,7 @@ export default function CaseAnalyzer() {
           .font-display { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; }
         `}</style>
         <UploadScreen
-          onFile={analyze} onText={analyzeText} busy={busy} progress={progress} error={error}
+          onFile={analyze} onText={analyzeText} onImport={handleImport} busy={busy} progress={progress} error={error}
           library={library} onOpen={handleOpen} onDelete={handleDelete} libLoading={libLoading}
         />
       </>
@@ -1274,6 +1409,12 @@ export default function CaseAnalyzer() {
                   : saveState === "saved" ? <Check size={13} />
                   : <Save size={13} />}
                 {saveState === "saved" ? "Saved" : "Save"}
+              </button>
+              <button
+                onClick={() => exportCaseFile(caseFile)}
+                className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white rounded-md px-2.5 py-1.5 hover:bg-white/10"
+              >
+                <Download size={13} /> Export
               </button>
               <button
                 onClick={() => { setCaseFile(null); setProgress(0); setError(null); setEditMode(false); }}
