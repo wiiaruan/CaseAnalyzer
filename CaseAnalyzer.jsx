@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   Building2, AlertTriangle, Eye, TrendingUp, Swords, ChevronDown,
   ChevronRight, Flag, Users, Target, CheckCircle2, ArrowRight,
-  ShieldAlert, Lightbulb, MessageSquare, Pencil, Download, FileUp,
+  ShieldAlert, Lightbulb, MessageSquare, Pencil, Download, FileUp, Layers,
   ClipboardList, ClipboardCheck, Gauge, FileText, Upload, Loader2, RotateCcw,
   Search as SearchIcon, Sparkles, AlertCircle, Save, Trash2,
   FolderOpen, Check, Users2
@@ -418,6 +418,94 @@ function Overview({ data }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------- Solution (open-platform map) ---------- */
+function SolutionLayer({ title, subtitle, items, tone }) {
+  if (!items?.length) return null;
+  const tones = {
+    top: { bg: ACCENT, text: "#fff", sub: "rgba(255,255,255,0.75)" },
+    mid: { bg: DARK, text: "#fff", sub: "rgba(255,255,255,0.6)" },
+    base: { bg: "#94a3b8", text: "#fff", sub: "rgba(255,255,255,0.8)" },
+  }[tone];
+  return (
+    <div className="rounded-lg overflow-hidden border border-slate-200">
+      <div className="px-4 py-2.5" style={{ background: tones.bg }}>
+        <span className="font-display text-sm font-bold" style={{ color: tones.text }}>{title}</span>
+        {subtitle && <span className="ml-2 text-[11px]" style={{ color: tones.sub }}>{subtitle}</span>}
+      </div>
+      <div className="grid sm:grid-cols-2 gap-px bg-slate-100">
+        {items.map((it, i) => (
+          <div key={i} className="bg-white p-3">
+            <div className="font-semibold text-slate-900 text-sm">{it.item}<SrcChip src={it.src} /></div>
+            <div className="text-[13px] text-slate-600 mt-0.5 leading-snug">{it.purpose}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Solution({ data }) {
+  const s = data.solution;
+  if (!s) {
+    return (
+      <div className="space-y-4">
+        <SectionTitle icon={Layers} sub="The open-platform stack this case needs">
+          Solution
+        </SectionTitle>
+        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500">
+          This case was analyzed before the Solution map existed — re-analyze the source document to generate it.
+        </div>
+      </div>
+    );
+  }
+  const topGroups = [
+    { key: "extensions", title: "XProtect Extensions", items: s.extensions },
+    { key: "analytics", title: "BriefCam Analytics", items: s.analytics },
+    { key: "cloud", title: "Arcules Cloud", items: s.cloud },
+  ].filter((g) => g.items?.length);
+
+  return (
+    <div className="space-y-4">
+      <SectionTitle icon={Layers} sub="The open-platform stack this case needs — every item maps to a requirement or pain">
+        Solution
+      </SectionTitle>
+
+      {s.narrative && (
+        <div className="rounded-lg p-4 text-sm text-white leading-relaxed" style={{ background: DARK }}>
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: ACCENT }}>
+            Solution narrative
+          </div>
+          {s.narrative}
+        </div>
+      )}
+
+      {topGroups.length > 0 && (
+        <div className="rounded-lg border-2 p-3 space-y-3" style={{ borderColor: ACCENT, background: "rgba(0,152,219,0.04)" }}>
+          <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: ACCENT }}>
+            Completing the solution — extensions · analytics · cloud
+          </div>
+          {topGroups.map((g) => (
+            <SolutionLayer key={g.key} title={g.title} items={g.items} tone="top" />
+          ))}
+        </div>
+      )}
+
+      <SolutionLayer
+        title="XProtect Platform"
+        subtitle="native capabilities"
+        items={s.platform}
+        tone="mid"
+      />
+      <SolutionLayer
+        title="Device Integration"
+        subtitle="open driver library — no vendor lock-in"
+        items={s.deviceIntegration}
+        tone="base"
+      />
     </div>
   );
 }
@@ -1023,6 +1111,7 @@ function UploadScreen({ onFile, onText, onImport, busy, progress, error, library
 /* ---------- App ---------- */
 const TABS = [
   { id: "overview", label: "Case Overview", icon: Building2, comp: Overview },
+  { id: "solution", label: "Solution", icon: Layers, comp: Solution },
   { id: "pain", label: "Pain", icon: AlertTriangle, comp: Pain },
   { id: "vision", label: "Vision", icon: Eye, comp: Vision },
   { id: "value", label: "Value", icon: TrendingUp, comp: Value },
@@ -1088,6 +1177,7 @@ const EDIT_ACCENT = "#d97706";
 
 const TAB_EDIT_KEYS = {
   overview: ["meta", "overview", "rfi", "discovery", "stakeholders"],
+  solution: ["solution"],
   pain: ["painHeadline", "pains"],
   vision: ["vision"],
   value: ["value"],
