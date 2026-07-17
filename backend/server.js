@@ -149,10 +149,14 @@ async function analyzeCase(caseText) {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "server-side-fallback-2026-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: "claude-fable-5",
         max_tokens: 20000,
+        // Fable's safety classifiers can decline a request; retry it on Opus
+        // server-side instead of failing the whole analysis.
+        fallbacks: [{ model: "claude-opus-4-8" }],
         messages: [{ role: "user", content: EXTRACTION_PROMPT + caseText }],
       }),
     });
@@ -171,6 +175,12 @@ async function analyzeCase(caseText) {
   const data = await res.json();
   if (data.error) {
     throw new Error("API error: " + JSON.stringify(data.error).slice(0, 300));
+  }
+  if (data.stop_reason === "refusal") {
+    throw new Error(
+      "The model declined to analyze this document" +
+        (data.stop_details?.explanation ? ": " + data.stop_details.explanation : ".")
+    );
   }
 
   const text = (data.content || [])
