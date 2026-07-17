@@ -80,8 +80,7 @@ REQUIREMENTS: rfi.sections mirror the document's own numbering/titles (e.g. "2.7
 
 WORD BUDGETS (compact ≠ vague — use the budget to be specific, don't pad to fill it, don't cut a concrete detail to save words): titles, labels, category names, discovery statements ≤ 15 words. summary, painHeadline, narrative, healthCheck rationale, rfi section summaries ≤ 30 words. pain-chain fields (pain/causes/capabilities/orgImpact), value statement fields (issue/action/value/check), objection fields (acknowledge/question/position/check), differentiator/red-flag detail ≤ 40 words. This keeps the JSON within budget — do not exceed these caps or the JSON will be cut off. Output the JSON and nothing after it.
 
-CUSTOMER CASE:
-`;
+The user message contains the customer case to analyse.`;
 
 // Best-effort JSON repair (same as frontend)
 function parseCaseJson(text) {
@@ -166,7 +165,16 @@ async function analyzeCase(caseText) {
         // Fable's safety classifiers can decline a request; retry it on Opus
         // server-side instead of failing the whole analysis.
         fallbacks: [{ model: "claude-opus-4-8" }],
-        messages: [{ role: "user", content: EXTRACTION_PROMPT + caseText }],
+        // The static methodology prompt is cached (1h TTL) so repeat analyses
+        // within the hour read it at 0.1x input price; only the case varies.
+        system: [
+          {
+            type: "text",
+            text: EXTRACTION_PROMPT,
+            cache_control: { type: "ephemeral", ttl: "1h" },
+          },
+        ],
+        messages: [{ role: "user", content: "CUSTOMER CASE:\n" + caseText }],
       }),
     });
   } catch (e) {
@@ -184,6 +192,13 @@ async function analyzeCase(caseText) {
   const data = await res.json();
   if (data.error) {
     throw new Error("API error: " + JSON.stringify(data.error).slice(0, 300));
+  }
+  if (data.usage) {
+    const u = data.usage;
+    console.log(
+      `usage: in=${u.input_tokens} cache_write=${u.cache_creation_input_tokens || 0} ` +
+        `cache_read=${u.cache_read_input_tokens || 0} out=${u.output_tokens}`
+    );
   }
   if (data.stop_reason === "refusal") {
     throw new Error(
