@@ -5,6 +5,7 @@
 ### **1️⃣ Frontend a Vercel**
 
 #### Paso 1: Preparar repositorio
+
 ```bash
 cd CaseAnalyzer
 git init
@@ -16,6 +17,7 @@ git push -u origin main
 ```
 
 #### Paso 2: Conectar a Vercel
+
 1. Ve a https://vercel.com/new
 2. Selecciona "Import Git Repository"
 3. Pega tu URL del repo
@@ -36,18 +38,22 @@ git push -u origin main
 ### **2️⃣ Backend a Railway**
 
 #### Paso 1: Crear cuenta Railway
+
 1. Ve a https://railway.app
 2. Sign up con GitHub
 3. Click "New Project" → "Deploy from GitHub"
 
 #### Paso 2: Conectar Backend
+
 1. Selecciona tu repo `caseanalyzer`
 2. Selecciona solo el directorio `backend/`
 3. Railway auto-detecta Node.js
 4. **Start Command**: `node server.js`
 
 #### Paso 3: Configurar Variables
+
 En el dashboard de Railway, agrega:
+
 ```
 ANTHROPIC_API_KEY=sk-ant-[TU_CLAVE_AQUI]
 PORT=3000
@@ -77,6 +83,7 @@ curl https://caseanalyzer-backend.railway.app/health
 ## 🔄 Actualizar después de cambios
 
 ### Frontend
+
 ```bash
 git add .
 git commit -m "Update: feature description"
@@ -85,6 +92,7 @@ git push
 ```
 
 ### Backend
+
 ```bash
 cd backend
 git add .
@@ -111,12 +119,12 @@ Railway → Railway Postgres (optional migration)
 
 ## 🛟 Troubleshooting
 
-| Problema | Solución |
-|----------|----------|
-| 401 Unauthorized en /api/analyze | Verifica ANTHROPIC_API_KEY en Railway dashboard |
-| CORS error | Backend ya tiene `cors()` habilitado |
-| Vercel build falla | Verifica npm run build funciona local: `npm run build` |
-| Railway crash | Verifica logs: Railway Dashboard → Deployments → Logs |
+| Problema                         | Solución                                               |
+| -------------------------------- | ------------------------------------------------------ |
+| 401 Unauthorized en /api/analyze | Verifica ANTHROPIC_API_KEY en Railway dashboard        |
+| CORS error                       | Backend ya tiene `cors()` habilitado                   |
+| Vercel build falla               | Verifica npm run build funciona local: `npm run build` |
+| Railway crash                    | Verifica logs: Railway Dashboard → Deployments → Logs  |
 
 ---
 
@@ -134,10 +142,9 @@ Railway → Railway Postgres (optional migration)
 
 ## 📞 URLs Finales
 
-| Recurso | URL |
-|---------|-----|
-| Frontend | https://caseanalyzer.vercel.app |
-| Backend | https://caseanalyzer-backend.railway.app |
-| Backend API | https://caseanalyzer-backend.railway.app/api |
+| Recurso      | URL                                             |
+| ------------ | ----------------------------------------------- |
+| Frontend     | https://caseanalyzer.vercel.app                 |
+| Backend      | https://caseanalyzer-backend.railway.app        |
+| Backend API  | https://caseanalyzer-backend.railway.app/api    |
 | Health Check | https://caseanalyzer-backend.railway.app/health |
-

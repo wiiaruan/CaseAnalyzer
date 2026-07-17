@@ -11,19 +11,21 @@
 
 ## 🏗️ Architecture
 
-| Layer | Tech | URL |
-|-------|------|-----|
+| Layer        | Tech                    | URL                   |
+| ------------ | ----------------------- | --------------------- |
 | **Frontend** | React + Vite + Tailwind | http://localhost:5173 |
-| **Backend** | Express.js + SQLite | http://localhost:5000 |
-| **AI** | Claude (Anthropic API) | api.anthropic.com |
+| **Backend**  | Express.js + SQLite     | http://localhost:5000 |
+| **AI**       | Claude (Anthropic API)  | api.anthropic.com     |
 
 ## 🚀 Quick Start (Local)
 
 ### Prerequisites
+
 - Node.js 16+
 - Anthropic API key (https://console.anthropic.com/)
 
 ### 1️⃣ Backend Setup
+
 ```bash
 cd backend
 cp .env.example .env.local
@@ -34,6 +36,7 @@ npm run dev
 ```
 
 ### 2️⃣ Frontend Setup
+
 ```bash
 # In root directory
 npm install
@@ -42,6 +45,7 @@ npm run dev
 ```
 
 ### 3️⃣ Test the App
+
 1. Open http://localhost:5173 in browser
 2. Upload a case PDF or paste text
 3. Wait for Claude analysis (~5-10 sec)
@@ -80,14 +84,14 @@ CaseAnalyzer/
 
 ## 🔌 API Endpoints
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| `POST` | `/api/analyze` | Analyze case text with Claude |
-| `GET` | `/api/cases` | List all saved cases |
-| `POST` | `/api/cases` | Save a case |
-| `GET` | `/api/cases/:id` | Fetch specific case |
-| `DELETE` | `/api/cases/:id` | Delete case |
-| `GET` | `/health` | Health check |
+| Method   | Endpoint         | Purpose                       |
+| -------- | ---------------- | ----------------------------- |
+| `POST`   | `/api/analyze`   | Analyze case text with Claude |
+| `GET`    | `/api/cases`     | List all saved cases          |
+| `POST`   | `/api/cases`     | Save a case                   |
+| `GET`    | `/api/cases/:id` | Fetch specific case           |
+| `DELETE` | `/api/cases/:id` | Delete case                   |
+| `GET`    | `/health`        | Health check                  |
 
 ## 🔐 Security
 
@@ -99,6 +103,7 @@ CaseAnalyzer/
 ## 🛠️ Tech Stack
 
 ### Frontend
+
 - **React 18** — UI components
 - **Vite** — Fast build tool
 - **Tailwind CSS** — Styling
@@ -106,6 +111,7 @@ CaseAnalyzer/
 - **pdf.js** — PDF text extraction
 
 ### Backend
+
 - **Express.js** — REST API
 - **SQLite3** — Local database
 - **Anthropic API** — Claude AI
