@@ -157,14 +157,10 @@ async function analyzeCase(caseText) {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        "anthropic-beta": "server-side-fallback-2026-06-01",
       },
       body: JSON.stringify({
-        model: "claude-fable-5",
+        model: "claude-sonnet-5",
         max_tokens: 20000,
-        // Fable's safety classifiers can decline a request; retry it on Opus
-        // server-side instead of failing the whole analysis.
-        fallbacks: [{ model: "claude-opus-4-8" }],
         // The static methodology prompt is cached (1h TTL) so repeat analyses
         // within the hour read it at 0.1x input price; only the case varies.
         system: [
