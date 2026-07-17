@@ -1,0 +1,5 @@
+.env.local
+node_modules/
+cases.db
+*.log
+.DS_Store
