@@ -440,7 +440,6 @@ function SolutionLayer({ title, subtitle, items, tone }) {
         {items.map((it, i) => (
           <div key={i} className="bg-white p-3">
             <div className="font-semibold text-slate-900 text-sm">{it.item}<SrcChip src={it.src} /></div>
-            <div className="text-[13px] text-slate-600 mt-0.5 leading-snug">{it.purpose}</div>
           </div>
         ))}
       </div>
