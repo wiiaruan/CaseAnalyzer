@@ -35,6 +35,7 @@ METHODOLOGY:
   extensions catalog: XProtect Access, XProtect Evidence Manager, XProtect Incident Manager, XProtect Management Server Failover, XProtect LPR, XProtect Smart Wall, XProtect Transact, XProtect Hospital Assist, Milestone Interconnect.
   analytics catalog (BriefCam): forensic multi-camera search & video synopsis review, real-time behavioural alerting, people/vehicle classification & attribute filtering, LPR analytics, heatmaps/counting/dwell business intelligence.
   cloud catalog (Arcules): cloud/hybrid VSaaS, multi-site cloud management, cloud archiving & redundancy, remote/mobile cloud access.
+  CATALOG PRECISION: every catalog item is a distinct capability — never blend, conflate, or borrow another item's defining mechanism just because two items sound similar or sit in adjacent layers. In particular: "Milestone Interconnect" federates SEPARATE, independent XProtect systems across sites with limited/intermittent bandwidth, pulling video on demand — it is NOT "Distributed Architecture", which is ONE XProtect system's recording servers spread across locations with reliable connectivity; do not describe Interconnect using Distributed Architecture's mechanism or vice versa. "XProtect Management Server Failover" (a licensed extension protecting the management server itself) is distinct from native "High Availability / Failover Support" (platform-level recording-server redundancy). "I/O Events & Alarm Management" (hardware I/O triggers and rules) is distinct from "Alarm Manager" (the broader alarm workflow/dispatch tool). If unsure exactly what differentiates two similarly-named items, describe only what the item's own name unambiguously implies — never pad a purpose by borrowing a sibling item's capability.
 - meta.stage is exactly one of: "Investigate" | "Develop" | "Propose" | "Negotiate" | "Ensure Procurement" (Milestone's Salesforce buying-process stages) — pick the closest match for where this case sits in the sales cycle.
 - Opportunity Health Check: score PAIN, POWER, VISION, VALUE, CONSENSUS 0-6 using Milestone's rubric below, based ONLY on what THIS DOCUMENT evidences about the sales process itself (not the customer's business situation). A case briefing rarely documents live deal history — most scores will be 0-2. Do NOT invent meetings, agreements or collaboration the document doesn't describe.
   PAIN: 0 none·1 admitted·2 documented pain+causes confirmed·3 discussed with power·4 pain flow explored org-wide·5 power committed to a time-based reason to act·6 power confirms link to strategy.
@@ -96,7 +97,7 @@ WORD BUDGETS (compact ≠ vague — use the budget to be specific, don't pad to 
 
 The user message contains the customer case to analyse.`;
 
-// Best-effort JSON repair (same as frontend)
+// Best-effort JSON repair for truncated/malformed model output
 function parseCaseJson(text) {
   let t = text.replace(/\`\`\`json|\`\`\`/g, "").trim();
   const first = t.indexOf("{");
@@ -159,41 +160,70 @@ function parseCaseJson(text) {
   return JSON.parse(repaired);
 }
 
-async function analyzeCase(caseText) {
+// Anthropic call gets one retry on a hung connection or a transient
+// 429/5xx — otherwise a blip throws away the client's PDF extraction and
+// makes the user redo the whole upload.
+const ANTHROPIC_TIMEOUT_MS = 120000;
+const ANTHROPIC_RETRY_DELAY_MS = 1000;
+
+async function fetchAnthropicWithRetry(body) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set in .env.local");
 
-  let res;
-  try {
-    res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": "server-side-fallback-2026-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-fable-5",
-        max_tokens: 20000,
-        // Fable's safety classifiers can decline a request; retry it on Opus
-        // server-side instead of failing the whole analysis.
-        fallbacks: [{ model: "claude-opus-4-8" }],
-        // The static methodology prompt is cached (1h TTL) so repeat analyses
-        // within the hour read it at 0.1x input price; only the case varies.
-        system: [
-          {
-            type: "text",
-            text: EXTRACTION_PROMPT,
-            cache_control: { type: "ephemeral", ttl: "1h" },
-          },
-        ],
-        messages: [{ role: "user", content: "CUSTOMER CASE:\n" + caseText }],
-      }),
-    });
-  } catch (e) {
-    throw new Error("NETWORK: could not reach the API — " + e.message);
+  const attempt = async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
+    try {
+      return await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-beta": "server-side-fallback-2026-06-01",
+        },
+        body,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  for (let i = 0; ; i++) {
+    try {
+      const res = await attempt();
+      if (res.ok || i > 0 || (res.status !== 429 && res.status < 500)) return res;
+    } catch (e) {
+      if (i > 0) {
+        const detail = e.name === "AbortError" ? "request timed out" : e.message;
+        throw new Error("NETWORK: could not reach the API — " + detail);
+      }
+    }
+    await new Promise((r) => setTimeout(r, ANTHROPIC_RETRY_DELAY_MS));
   }
+}
+
+async function analyzeCase(caseText) {
+  const res = await fetchAnthropicWithRetry(
+    JSON.stringify({
+      model: "claude-fable-5",
+      max_tokens: 20000,
+      // Fable's safety classifiers can decline a request; retry it on Opus
+      // server-side instead of failing the whole analysis.
+      fallbacks: [{ model: "claude-opus-4-8" }],
+      // The static methodology prompt is cached (1h TTL) so repeat analyses
+      // within the hour read it at 0.1x input price; only the case varies.
+      system: [
+        {
+          type: "text",
+          text: EXTRACTION_PROMPT,
+          cache_control: { type: "ephemeral", ttl: "1h" },
+        },
+      ],
+      messages: [{ role: "user", content: "CUSTOMER CASE:\n" + caseText }],
+    })
+  );
 
   if (!res.ok) {
     let detail = "";
