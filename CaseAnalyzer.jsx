@@ -5,7 +5,7 @@ import {
   ShieldAlert, Lightbulb, MessageSquare, Pencil, Download, FileUp, Layers,
   ClipboardList, ClipboardCheck, Gauge, FileText, Upload, Loader2, RotateCcw,
   Search as SearchIcon, Sparkles, AlertCircle, Save, Trash2,
-  FolderOpen, Check, Users2
+  FolderOpen, Check, Users2, Plus, Copy, ChevronUp
 } from "lucide-react";
 
 /* ================================================================
@@ -1273,6 +1273,25 @@ function setAtPath(obj, path, value) {
   return clone;
 }
 
+const deepClone = (x) => JSON.parse(JSON.stringify(x));
+
+// Build an empty item shaped like an existing one, so "Add" keeps the schema
+// intact: strings blank, numbers 0, booleans false, and provenance defaults to
+// "inferred" (a trainer-added field is not from the source doc).
+function blankLike(sample) {
+  if (Array.isArray(sample)) return [];
+  if (sample !== null && typeof sample === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(sample)) {
+      out[k] = k === "src" ? "inferred" : blankLike(v);
+    }
+    return out;
+  }
+  if (typeof sample === "number") return 0;
+  if (typeof sample === "boolean") return false;
+  return "";
+}
+
 const prettyKey = (k) =>
   String(k)
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -1320,6 +1339,101 @@ function EditField({ label, value, path, onChange }) {
   );
 }
 
+// An item is "blank" when it equals its own blanked shape — i.e. the trainer
+// added it but never typed anything. Those delete without a confirm; items with
+// real content require a two-step confirm so nothing is lost by a stray click.
+const isBlankItem = (item) => JSON.stringify(item) === JSON.stringify(blankLike(item));
+
+function ArrayEditor({ label, value, path, onChange, depth }) {
+  const [confirmIdx, setConfirmIdx] = useState(null);
+  const mutate = (next) => { setConfirmIdx(null); onChange(path, next); };
+  const addItem = () => mutate([...value, blankLike(value.length ? value[value.length - 1] : "")]);
+  const removeItem = (i) => mutate(value.filter((_, j) => j !== i));
+  const duplicateItem = (i) => {
+    const next = [...value];
+    next.splice(i + 1, 0, deepClone(value[i]));
+    mutate(next);
+  };
+  const moveItem = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= value.length) return;
+    const next = [...value];
+    [next[i], next[j]] = [next[j], next[i]];
+    mutate(next);
+  };
+  const requestDelete = (i) => (isBlankItem(value[i]) ? removeItem(i) : setConfirmIdx(i));
+
+  const itemControls = (i) =>
+    confirmIdx === i ? (
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-red-600">Delete?</span>
+        <button type="button" aria-label="Confirm delete" onClick={() => removeItem(i)}
+          className="rounded bg-red-500 px-1.5 py-0.5 text-[11px] font-semibold text-white hover:bg-red-600">Yes</button>
+        <button type="button" aria-label="Cancel delete" onClick={() => setConfirmIdx(null)}
+          className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100">No</button>
+      </div>
+    ) : (
+      <div className="flex items-center gap-0.5 shrink-0">
+        <button type="button" aria-label="Move up" title="Move up" disabled={i === 0} onClick={() => moveItem(i, -1)}
+          className="rounded p-1 text-amber-600 hover:bg-amber-100 disabled:opacity-30 disabled:cursor-not-allowed">
+          <ChevronUp size={14} />
+        </button>
+        <button type="button" aria-label="Move down" title="Move down" disabled={i === value.length - 1} onClick={() => moveItem(i, 1)}
+          className="rounded p-1 text-amber-600 hover:bg-amber-100 disabled:opacity-30 disabled:cursor-not-allowed">
+          <ChevronDown size={14} />
+        </button>
+        <button type="button" aria-label="Duplicate" title="Duplicate" onClick={() => duplicateItem(i)}
+          className="rounded p-1 text-amber-600 hover:bg-amber-100">
+          <Copy size={13} />
+        </button>
+        <button type="button" aria-label="Delete" title="Delete" onClick={() => requestDelete(i)}
+          className="rounded p-1 text-red-500 hover:bg-red-50">
+          <Trash2 size={13} />
+        </button>
+      </div>
+    );
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+          {label}
+          {value.length > 0 && <span className="ml-1 text-amber-400">({value.length})</span>}
+        </div>
+        <button type="button" onClick={addItem}
+          className="flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100">
+          <Plus size={12} /> Add
+        </button>
+      </div>
+      {value.length === 0 && (
+        <div className="text-xs italic text-slate-400">No items yet — use Add to create one.</div>
+      )}
+      {value.map((item, i) =>
+        item !== null && typeof item === "object" ? (
+          <div key={i} className="rounded-lg border border-amber-200 bg-white p-3 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                {label} · {i + 1}
+              </div>
+              {itemControls(i)}
+            </div>
+            {Object.entries(item).map(([k, v]) => (
+              <EditNode key={k} label={prettyKey(k)} value={v} path={[...path, i, k]} onChange={onChange} depth={depth + 1} />
+            ))}
+          </div>
+        ) : (
+          <div key={i} className="flex items-end gap-2">
+            <div className="flex-1 min-w-0">
+              <EditField label={`${label} · ${i + 1}`} value={item} path={[...path, i]} onChange={onChange} />
+            </div>
+            {itemControls(i)}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 function EditNode({ label, value, path, onChange, depth = 0 }) {
   if (path[path.length - 1] === "src") {
     return (
@@ -1340,25 +1454,7 @@ function EditNode({ label, value, path, onChange, depth = 0 }) {
     return <EditField label={label} value={value} path={path} onChange={onChange} />;
   }
   if (Array.isArray(value)) {
-    return (
-      <div className="space-y-2">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700">{label}</div>
-        {value.map((item, i) =>
-          item !== null && typeof item === "object" ? (
-            <div key={i} className="rounded-lg border border-amber-200 bg-white p-3 space-y-2.5">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
-                {label} · {i + 1}
-              </div>
-              {Object.entries(item).map(([k, v]) => (
-                <EditNode key={k} label={prettyKey(k)} value={v} path={[...path, i, k]} onChange={onChange} depth={depth + 1} />
-              ))}
-            </div>
-          ) : (
-            <EditField key={i} label={`${label} · ${i + 1}`} value={item} path={[...path, i]} onChange={onChange} />
-          )
-        )}
-      </div>
-    );
+    return <ArrayEditor label={label} value={value} path={path} onChange={onChange} depth={depth} />;
   }
   return (
     <div className={depth > 0 ? "rounded-lg border border-amber-100 bg-amber-50/30 p-2.5 space-y-2" : "space-y-2.5"}>
