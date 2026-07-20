@@ -455,7 +455,7 @@ function readWithTimeout(reader, ms) {
 async function analyzeCase(caseText, onProgress) {
   const res = await openAnthropicStream(
     JSON.stringify({
-      model: "claude-opus-4-8",
+      model: "claude-fable-5",
       max_tokens: MAX_OUTPUT_TOKENS,
       stream: true,
       // Forcing this tool makes the API return schema-validated JSON directly
