@@ -15,7 +15,7 @@ collaboration plan, competitive positioning and an opportunity health check.
   lives on a Railway volume via `DB_PATH=/data/cases.db`; locally it defaults to
   `backend/cases.db`.
 - **Model**: the analysis calls the Anthropic API from `backend/server.js` with
-  `claude-sonnet-5`. The static `EXTRACTION_PROMPT` is sent as a `system` block
+  `claude-opus-4-8`. The static `EXTRACTION_PROMPT` is sent as a `system` block
   with `cache_control` (1h TTL) so repeat analyses read it at 0.1x input price.
   The model string exists ONLY in `server.js` — never hardcode it elsewhere.
 - PDF text extraction happens client-side with pdf.js (zero tokens); only the
