@@ -55,35 +55,7 @@ CALIBRATION EXAMPLE (match this level of specificity and register — do not reu
 
 PROVENANCE: every field with a "src" key = "doc" if the document states/implies it, else "inferred". NEVER leave a field empty. If missing, infer a value faithful to the context (industry, scale, tech, regulation, goals) and mark it "inferred". Inferred values must survive a fact-check by someone who works in that vertical: realistic ranges, real regulation names, job titles that exist in such an organization — an implausible inference poisons the seller's practice.
 
-Return ONLY this JSON (no markdown, no commentary):
-{
- "meta":{"customer":"","industry":"","stage":"","competitor":"","docType":""},
- "overview":{
-   "summary":{"value":"","src":"doc"},
-   "snapshot":[{"label":"","value":"","src":"doc"}]
- },
- "rfi":{
-   "intro":{"value":"","src":"doc"},
-   "sections":[{"no":"1.1","title":"","summary":{"value":"","src":"doc"},"rows":[{"k":"","v":{"value":"","src":"doc"}}],"critical":false}]
- },
- "solution":{
-   "narrative":"",
-   "deviceIntegration":[{"item":"","purpose":"","src":"doc"}],
-   "platform":[{"item":"","purpose":"","src":"doc"}],
-   "extensions":[{"item":"","purpose":"","src":"doc"}],
-   "analytics":[{"item":"","purpose":"","src":"doc"}],
-   "cloud":[{"item":"","purpose":"","src":"doc"}]
- },
- "discovery":{"statements":[{"value":"","src":"doc"}],"competitorAlert":{"value":"","src":"doc"}},
- "stakeholders":[{"name":"","title":"","focus":"","influence":"","cares":["",""],"src":"doc"}],
- "pains":[{"title":"","category":"","owner":"","pain":"","causes":"","capabilities":"","orgImpact":"","affects":["",""],"src":"doc"}],
- "painHeadline":"",
- "vision":{"items":[{"title":"","detail":"","src":"doc"}],"playback":""},
- "value":{"drivers":[{"driver":"","mechanism":"","impact":"","src":"doc"}],"statements":[{"name":"","issue":"","action":"","value":"","check":""}]},
- "consensus":{"summary":"","events":[{"event":"","phase":"Solution|Transition|Financial","weekOf":"","responsible":"","goNoGo":false,"src":"doc"}]},
- "competitive":{"narrative":"","differentiators":[{"title":"","detail":"","uniqueness":0,"customerValue":0}],"parity":[""],"objections":[{"objection":"","acknowledge":"","question":"","position":"","check":""}],"redFlags":[""]},
- "healthCheck":{"pain":{"score":0,"rationale":""},"power":{"score":0,"rationale":""},"vision":{"score":0,"rationale":""},"value":{"score":0,"rationale":""},"consensus":{"score":0,"rationale":""}}
-}
+Call the emit_case_analysis tool exactly once with the complete analysis — the tool's schema defines the exact field shape, do not respond with plain text.
 
 CASE OVERVIEW (the seller's SCENARIO BRIEFING — describe the situation, do NOT diagnose it):
 This section only sets the stage. The seller must DISCOVER the pains, vision, value and positioning themselves in the other sections — so the Overview must NOT contain pain analysis, business impact, quantified value, competitive strategy, or any "answer". Facts of the scenario = yes; interpretations/findings = no.
@@ -93,86 +65,352 @@ This section only sets the stage. The seller must DISCOVER the pains, vision, va
 
 REQUIREMENTS: rfi.sections mirror the document's own numbering/titles (e.g. "2.7 Degraded Mode") and hold only the facts of each requirement; mark hard requirements critical:true. solution.narrative is 1-2 sentences on how the layered solution answers this case; solution layers hold 2-6 items each (deviceIntegration and platform are never empty; extensions/analytics/cloud may be empty when genuinely irrelevant). Do NOT add a Milestone response in the Overview. 5-6 pains. 6-8 vision items. 5-6 value drivers with figures. exactly 3 value statements (action starts "Imagine…"/"Consider…"). 4-6 collaboration-plan events spanning Solution/Transition/Financial phases, at least one marked goNoGo:true. differentiators[0] is the demo centerpiece (solves the hardest requirement, uniqueness 8-10 and customerValue 8-10). pains[].affects is empty only if the case genuinely has one isolated stakeholder. 2 fully-worked objections. 3 red flags. If no competitor is named, infer the most likely one. healthCheck scores are always src:"doc"-grade judgment calls, not inferred facts — each rationale is one sentence citing what is (or isn't) evidenced in the document.
 
-WORD BUDGETS (compact ≠ vague — use the budget to be specific, don't pad to fill it, don't cut a concrete detail to save words): titles, labels, category names, discovery statements ≤ 15 words. summary, painHeadline, narrative, healthCheck rationale, rfi section summaries ≤ 30 words. pain-chain fields (pain/causes/capabilities/orgImpact), value statement fields (issue/action/value/check), objection fields (acknowledge/question/position/check), differentiator/red-flag detail ≤ 40 words. This keeps the JSON within budget — do not exceed these caps or the JSON will be cut off. Output the JSON and nothing after it.
+WORD BUDGETS (compact ≠ vague — use the budget to be specific, don't pad to fill it, don't cut a concrete detail to save words): titles, labels, category names, discovery statements ≤ 15 words. summary, painHeadline, narrative, healthCheck rationale, rfi section summaries ≤ 30 words. pain-chain fields (pain/causes/capabilities/orgImpact), value statement fields (issue/action/value/check), objection fields (acknowledge/question/position/check), differentiator/red-flag detail ≤ 40 words. This keeps the analysis within the output budget — do not exceed these caps or generation may run out of tokens mid-call.
 
 The user message contains the customer case to analyse.`;
 
-// Best-effort JSON repair for truncated/malformed model output
-function parseCaseJson(text) {
-  let t = text.replace(/\`\`\`json|\`\`\`/g, "").trim();
-  const first = t.indexOf("{");
-  if (first > 0) t = t.slice(first);
+// JSON Schema for the tool call below. Forcing this tool (tool_choice) makes
+// the API itself guarantee well-typed, schema-shaped JSON — no more freeform
+// text to scan for stray preambles or truncated braces.
+const SRC_ENUM = ["doc", "inferred"];
+const srcField = () => ({
+  type: "object",
+  properties: { value: { type: "string" }, src: { type: "string", enum: SRC_ENUM } },
+  required: ["value", "src"],
+  additionalProperties: false,
+});
+const solutionLayer = (min, max) => ({
+  type: "array",
+  minItems: min,
+  maxItems: max,
+  items: {
+    type: "object",
+    properties: {
+      item: { type: "string" },
+      purpose: { type: "string" },
+      src: { type: "string", enum: SRC_ENUM },
+    },
+    required: ["item", "purpose", "src"],
+    additionalProperties: false,
+  },
+});
 
-  const lastBrace = t.lastIndexOf("}");
-  if (lastBrace > 0) {
-    try {
-      return JSON.parse(t.slice(0, lastBrace + 1));
-    } catch {}
-  }
+const CASE_ANALYSIS_SCHEMA = {
+  type: "object",
+  properties: {
+    meta: {
+      type: "object",
+      properties: {
+        customer: { type: "string" },
+        industry: { type: "string" },
+        stage: {
+          type: "string",
+          enum: ["Investigate", "Develop", "Propose", "Negotiate", "Ensure Procurement"],
+        },
+        competitor: { type: "string" },
+        docType: { type: "string" },
+      },
+      required: ["customer", "industry", "stage", "competitor", "docType"],
+      additionalProperties: false,
+    },
+    overview: {
+      type: "object",
+      properties: {
+        summary: srcField(),
+        snapshot: {
+          type: "array",
+          minItems: 6,
+          maxItems: 10,
+          items: {
+            type: "object",
+            properties: {
+              label: { type: "string" },
+              value: { type: "string" },
+              src: { type: "string", enum: SRC_ENUM },
+            },
+            required: ["label", "value", "src"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["summary", "snapshot"],
+      additionalProperties: false,
+    },
+    rfi: {
+      type: "object",
+      properties: {
+        intro: srcField(),
+        sections: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              no: { type: "string" },
+              title: { type: "string" },
+              summary: srcField(),
+              rows: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: { k: { type: "string" }, v: srcField() },
+                  required: ["k", "v"],
+                  additionalProperties: false,
+                },
+              },
+              critical: { type: "boolean" },
+            },
+            required: ["no", "title", "summary", "rows", "critical"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["intro", "sections"],
+      additionalProperties: false,
+    },
+    solution: {
+      type: "object",
+      properties: {
+        narrative: { type: "string" },
+        deviceIntegration: solutionLayer(2, 6),
+        platform: solutionLayer(2, 6),
+        extensions: solutionLayer(0, 6),
+        analytics: solutionLayer(0, 6),
+        cloud: solutionLayer(0, 6),
+      },
+      required: ["narrative", "deviceIntegration", "platform", "extensions", "analytics", "cloud"],
+      additionalProperties: false,
+    },
+    discovery: {
+      type: "object",
+      properties: {
+        statements: { type: "array", items: srcField() },
+        competitorAlert: srcField(),
+      },
+      required: ["statements", "competitorAlert"],
+      additionalProperties: false,
+    },
+    stakeholders: {
+      type: "array",
+      minItems: 3,
+      maxItems: 6,
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          title: { type: "string" },
+          focus: { type: "string", enum: ["Solution", "Transition", "Financial"] },
+          influence: { type: "string", enum: ["High", "Medium", "Low"] },
+          cares: { type: "array", minItems: 2, maxItems: 3, items: { type: "string" } },
+          src: { type: "string", enum: SRC_ENUM },
+        },
+        required: ["name", "title", "focus", "influence", "cares", "src"],
+        additionalProperties: false,
+      },
+    },
+    pains: {
+      type: "array",
+      minItems: 5,
+      maxItems: 6,
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          category: {
+            type: "string",
+            enum: ["Compliance", "Too high / increasing", "Too low / decreasing", "Missed opportunity"],
+          },
+          owner: { type: "string" },
+          pain: { type: "string" },
+          causes: { type: "string" },
+          capabilities: { type: "string" },
+          orgImpact: { type: "string" },
+          affects: { type: "array", items: { type: "string" } },
+          src: { type: "string", enum: SRC_ENUM },
+        },
+        required: ["title", "category", "owner", "pain", "causes", "capabilities", "orgImpact", "affects", "src"],
+        additionalProperties: false,
+      },
+    },
+    painHeadline: { type: "string" },
+    vision: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          minItems: 6,
+          maxItems: 8,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              detail: { type: "string" },
+              src: { type: "string", enum: SRC_ENUM },
+            },
+            required: ["title", "detail", "src"],
+            additionalProperties: false,
+          },
+        },
+        playback: { type: "string" },
+      },
+      required: ["items", "playback"],
+      additionalProperties: false,
+    },
+    value: {
+      type: "object",
+      properties: {
+        drivers: {
+          type: "array",
+          minItems: 5,
+          maxItems: 6,
+          items: {
+            type: "object",
+            properties: {
+              driver: { type: "string" },
+              mechanism: { type: "string" },
+              impact: { type: "string" },
+              src: { type: "string", enum: SRC_ENUM },
+            },
+            required: ["driver", "mechanism", "impact", "src"],
+            additionalProperties: false,
+          },
+        },
+        statements: {
+          type: "array",
+          minItems: 3,
+          maxItems: 3,
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              issue: { type: "string" },
+              action: { type: "string" },
+              value: { type: "string" },
+              check: { type: "string" },
+            },
+            required: ["name", "issue", "action", "value", "check"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["drivers", "statements"],
+      additionalProperties: false,
+    },
+    consensus: {
+      type: "object",
+      properties: {
+        summary: { type: "string" },
+        events: {
+          type: "array",
+          minItems: 4,
+          maxItems: 6,
+          items: {
+            type: "object",
+            properties: {
+              event: { type: "string" },
+              phase: { type: "string", enum: ["Solution", "Transition", "Financial"] },
+              weekOf: { type: "string" },
+              responsible: { type: "string" },
+              goNoGo: { type: "boolean" },
+              src: { type: "string", enum: SRC_ENUM },
+            },
+            required: ["event", "phase", "weekOf", "responsible", "goNoGo", "src"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["summary", "events"],
+      additionalProperties: false,
+    },
+    competitive: {
+      type: "object",
+      properties: {
+        narrative: { type: "string" },
+        differentiators: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              detail: { type: "string" },
+              uniqueness: { type: "integer", minimum: 0, maximum: 10 },
+              customerValue: { type: "integer", minimum: 0, maximum: 10 },
+            },
+            required: ["title", "detail", "uniqueness", "customerValue"],
+            additionalProperties: false,
+          },
+        },
+        parity: { type: "array", items: { type: "string" } },
+        objections: {
+          type: "array",
+          minItems: 2,
+          maxItems: 2,
+          items: {
+            type: "object",
+            properties: {
+              objection: { type: "string" },
+              acknowledge: { type: "string" },
+              question: { type: "string" },
+              position: { type: "string" },
+              check: { type: "string" },
+            },
+            required: ["objection", "acknowledge", "question", "position", "check"],
+            additionalProperties: false,
+          },
+        },
+        redFlags: { type: "array", minItems: 3, maxItems: 3, items: { type: "string" } },
+      },
+      required: ["narrative", "differentiators", "parity", "objections", "redFlags"],
+      additionalProperties: false,
+    },
+    healthCheck: {
+      type: "object",
+      properties: Object.fromEntries(
+        ["pain", "power", "vision", "value", "consensus"].map((k) => [
+          k,
+          {
+            type: "object",
+            properties: {
+              score: { type: "integer", minimum: 0, maximum: 6 },
+              rationale: { type: "string" },
+            },
+            required: ["score", "rationale"],
+            additionalProperties: false,
+          },
+        ])
+      ),
+      required: ["pain", "power", "vision", "value", "consensus"],
+      additionalProperties: false,
+    },
+  },
+  required: [
+    "meta", "overview", "rfi", "solution", "discovery", "stakeholders", "pains",
+    "painHeadline", "vision", "value", "consensus", "competitive", "healthCheck",
+  ],
+  additionalProperties: false,
+};
 
-  const stackAt = (arr) => arr.slice();
-  let depth = [];
-  let inStr = false,
-    esc = false;
-  let cut = -1,
-    cutDepth = [];
-  const mark = (i) => {
-    cut = i;
-    cutDepth = stackAt(depth);
-  };
-
-  for (let i = 0; i < t.length; i++) {
-    const ch = t[i];
-    if (esc) {
-      esc = false;
-      continue;
-    }
-    if (ch === "\\") {
-      esc = true;
-      continue;
-    }
-    if (ch === '"') {
-      inStr = !inStr;
-      if (!inStr) {
-        let j = i + 1;
-        while (j < t.length && /\s/.test(t[j])) j++;
-        if (t[j] === "," || t[j] === "}" || t[j] === "]" || j >= t.length)
-          mark(i);
-      }
-      continue;
-    }
-    if (inStr) continue;
-    if (ch === "{" || ch === "[") depth.push(ch === "{" ? "}" : "]");
-    else if (ch === "}" || ch === "]") {
-      depth.pop();
-      mark(i);
-    } else if (/[0-9truefalsn]/.test(ch)) {
-      let j = i + 1;
-      while (j < t.length && /[0-9truefalsn.eE+-]/.test(t[j])) j++;
-      while (j < t.length && /\s/.test(t[j])) j++;
-      if (t[j] === "," || t[j] === "}" || t[j] === "]") mark(i);
-    }
-  }
-
-  if (cut < 0) throw new Error("unrepairable JSON");
-  let repaired = t.slice(0, cut + 1).replace(/,\s*$/, "");
-  for (let k = cutDepth.length - 1; k >= 0; k--) repaired += cutDepth[k];
-  return JSON.parse(repaired);
-}
-
-// Anthropic call gets one retry on a hung connection or a transient
+// The connect phase gets one retry on a hung connection or a transient
 // 429/5xx — otherwise a blip throws away the client's PDF extraction and
-// makes the user redo the whole upload.
-const ANTHROPIC_TIMEOUT_MS = 120000;
+// makes the user redo the whole upload. Once the stream is flowing we no
+// longer retry (the client is already receiving live progress); instead
+// each read is bounded by an idle timeout so a stalled connection is
+// detected quickly instead of hanging for minutes.
+const ANTHROPIC_CONNECT_TIMEOUT_MS = 30000;
+const ANTHROPIC_IDLE_TIMEOUT_MS = 60000;
 const ANTHROPIC_RETRY_DELAY_MS = 1000;
+const MAX_OUTPUT_TOKENS = 20000;
+// A typical completed analysis runs ~18-20K JSON characters (well under the
+// max_tokens ceiling, which is a hard cap, not the expected size) — used to
+// turn the live byte count into a percentage for the progress bar.
+const EXPECTED_OUTPUT_CHARS = 20000;
 
-async function fetchAnthropicWithRetry(body) {
+async function openAnthropicStream(body) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set in .env.local");
 
   const attempt = async () => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), ANTHROPIC_CONNECT_TIMEOUT_MS);
     try {
       return await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -195,19 +433,42 @@ async function fetchAnthropicWithRetry(body) {
       if (res.ok || i > 0 || (res.status !== 429 && res.status < 500)) return res;
     } catch (e) {
       if (i > 0) {
-        const detail = e.name === "AbortError" ? "request timed out" : e.message;
-        throw new Error("NETWORK: could not reach the API — " + detail);
+        const detail = e.name === "AbortError" ? "could not reach the API in time" : e.message;
+        throw new Error("NETWORK: " + detail);
       }
     }
     await new Promise((r) => setTimeout(r, ANTHROPIC_RETRY_DELAY_MS));
   }
 }
 
-async function analyzeCase(caseText) {
-  const res = await fetchAnthropicWithRetry(
+function readWithTimeout(reader, ms) {
+  return Promise.race([
+    reader.read(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("stream went idle")), ms)),
+  ]);
+}
+
+// Streams the Anthropic response and reassembles the forced tool call's
+// JSON arguments from `input_json_delta` chunks. onProgress is called with
+// the cumulative output token count as it grows, so the UI can show real
+// progress instead of a time-based guess.
+async function analyzeCase(caseText, onProgress) {
+  const res = await openAnthropicStream(
     JSON.stringify({
       model: "claude-opus-4-8",
-      max_tokens: 20000,
+      max_tokens: MAX_OUTPUT_TOKENS,
+      stream: true,
+      // Forcing this tool makes the API return schema-validated JSON directly
+      // (see CASE_ANALYSIS_SCHEMA) instead of freeform text we have to parse.
+      tools: [
+        {
+          name: "emit_case_analysis",
+          description: "Return the completed Growth Activator case analysis.",
+          input_schema: CASE_ANALYSIS_SCHEMA,
+          cache_control: { type: "ephemeral", ttl: "1h" },
+        },
+      ],
+      tool_choice: { type: "tool", name: "emit_case_analysis" },
       // The static methodology prompt is cached (1h TTL) so repeat analyses
       // within the hour read it at 0.1x input price; only the case varies.
       system: [
@@ -229,53 +490,118 @@ async function analyzeCase(caseText) {
     throw new Error(`API ${res.status}: ${detail}`);
   }
 
-  const data = await res.json();
-  if (data.error) {
-    throw new Error("API error: " + JSON.stringify(data.error).slice(0, 300));
-  }
-  if (data.usage) {
-    const u = data.usage;
-    console.log(
-      `usage: in=${u.input_tokens} cache_write=${u.cache_creation_input_tokens || 0} ` +
-        `cache_read=${u.cache_read_input_tokens || 0} out=${u.output_tokens}`
-    );
-  }
-  if (data.stop_reason === "refusal") {
-    throw new Error(
-      "The model declined to analyze this document" +
-        (data.stop_details?.explanation ? ": " + data.stop_details.explanation : ".")
-    );
-  }
-
-  const text = (data.content || [])
-    .map((c) => (c.type === "text" ? c.text : ""))
-    .join("");
-  if (!text) throw new Error("Empty response from the model.");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let jsonInput = "";
+  let stopReason = null;
+  let usage = null;
+  let lastReportedLen = 0;
 
   try {
-    return parseCaseJson(text);
-  } catch (e) {
+    while (true) {
+      let chunk;
+      try {
+        chunk = await readWithTimeout(reader, ANTHROPIC_IDLE_TIMEOUT_MS);
+      } catch (e) {
+        reader.cancel().catch(() => {});
+        throw new Error("NETWORK: " + e.message);
+      }
+      if (chunk.done) break;
+      buf += decoder.decode(chunk.value, { stream: true });
+
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const block = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        const dataLine = block.split("\n").find((l) => l.startsWith("data:"));
+        if (!dataLine) continue;
+        const payload = dataLine.slice(5).trim();
+        if (!payload) continue;
+
+        let evt;
+        try {
+          evt = JSON.parse(payload);
+        } catch {
+          continue;
+        }
+
+        if (evt.type === "content_block_delta" && evt.delta?.type === "input_json_delta") {
+          jsonInput += evt.delta.partial_json || "";
+          // `message_delta` (the event carrying usage.output_tokens) fires
+          // exactly once, right at the end of the stream — it's useless for
+          // live progress. The JSON accumulated so far arrives incrementally
+          // across ~thousands of these deltas, so drive progress off its
+          // growing length instead (throttled so we're not emitting an SSE
+          // event per delta).
+          if (onProgress && jsonInput.length - lastReportedLen >= 200) {
+            lastReportedLen = jsonInput.length;
+            onProgress(jsonInput.length);
+          }
+        } else if (evt.type === "message_start") {
+          usage = evt.message?.usage || usage;
+        } else if (evt.type === "message_delta") {
+          if (evt.delta?.stop_reason) stopReason = evt.delta.stop_reason;
+          if (evt.usage) usage = { ...usage, ...evt.usage };
+        } else if (evt.type === "error") {
+          throw new Error("API error: " + JSON.stringify(evt.error).slice(0, 300));
+        }
+      }
+    }
+  } finally {
+    if (usage) {
+      console.log(
+        `usage: in=${usage.input_tokens || 0} cache_write=${usage.cache_creation_input_tokens || 0} ` +
+          `cache_read=${usage.cache_read_input_tokens || 0} out=${usage.output_tokens || 0}`
+      );
+    }
+  }
+
+  if (stopReason === "refusal") {
+    throw new Error("The model declined to analyze this document.");
+  }
+  if (stopReason === "max_tokens") {
     throw new Error(
-      "PARSE: model did not return valid JSON. First 200 chars: " +
-        text.slice(0, 200)
+      "The model ran out of output tokens mid-analysis. Try a shorter/simpler case document."
     );
+  }
+  if (!jsonInput) throw new Error("Model did not call the emit_case_analysis tool.");
+
+  try {
+    return JSON.parse(jsonInput);
+  } catch (e) {
+    throw new Error("Model output was not valid JSON: " + e.message);
   }
 }
 
 // Routes
 
 // Analizar texto (POST desde frontend después de extraer PDF)
+// Streams progress as SSE so a slow multi-minute generation shows real
+// movement instead of the client sitting on one blocking fetch.
 app.post("/api/analyze", async (req, res) => {
-  try {
-    const { caseText } = req.body;
-    if (!caseText)
-      return res.status(400).json({ error: "caseText required" });
+  const { caseText } = req.body;
+  if (!caseText) return res.status(400).json({ error: "caseText required" });
 
-    const result = await analyzeCase(caseText);
-    res.json(result);
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const result = await analyzeCase(caseText, (chars) => {
+      send("progress", { chars, expectedChars: EXPECTED_OUTPUT_CHARS });
+    });
+    send("done", result);
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: e.message });
+    send("error", { message: e.message });
+  } finally {
+    res.end();
   }
 });
 

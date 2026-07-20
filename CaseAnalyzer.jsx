@@ -86,39 +86,114 @@ function loadPdfJs() {
   return pdfjsPromise;
 }
 
+// Running headers/footers (company name, doc title, "Page X of Y") repeat
+// verbatim on nearly every page. They're not cached like the system prompt —
+// this text is a fresh, per-case payload every time — so every repeat is
+// input tokens paid for on every single analysis. Detect the shared
+// prefix/suffix across pages (skipping the cover page, which often differs)
+// and strip it once here instead of shipping it N times.
+function stripRepeatedBoilerplate(pages) {
+  if (pages.length < 4) return pages; // too few pages to trust a pattern
+
+  const body = pages.slice(1);
+  let prefixLen = body[0].length;
+  let suffixLen = body[0].length;
+  for (let i = 1; i < body.length; i++) {
+    const a = body[i - 1], b = body[i];
+    let p = 0;
+    while (p < prefixLen && p < a.length && p < b.length && a[p] === b[p]) p++;
+    prefixLen = p;
+    let s = 0;
+    while (s < suffixLen && s < a.length && s < b.length && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+    suffixLen = s;
+  }
+  // Cap so a coincidental match never eats real paragraph content.
+  prefixLen = Math.min(prefixLen, 120);
+  suffixLen = Math.min(suffixLen, 120);
+  if (prefixLen <= 8 && suffixLen <= 8) return pages;
+
+  return pages.map((text, i) => {
+    if (i === 0) return text;
+    let t = prefixLen > 8 ? text.slice(prefixLen).replace(/^\d{1,4}\s+/, "") : text;
+    if (suffixLen > 8 && t.length > suffixLen) t = t.slice(0, t.length - suffixLen);
+    return t.trim();
+  });
+}
+
 async function extractPdfText(file) {
   const pdfjsLib = await loadPdfJs();
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-  let out = "";
+  const pages = [];
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
-    out += content.items.map((it) => it.str).join(" ") + "\n\n";
+    pages.push(content.items.map((it) => it.str).join(" ").replace(/[ \t]+/g, " ").trim());
   }
   // Trim to keep the request lean (case briefs are well under this).
-  return out.replace(/[ \t]+/g, " ").trim().slice(0, 24000);
+  return stripRepeatedBoilerplate(pages)
+    .join("\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 24000);
 }
 
 // EXTRACTION_PROMPT moved to backend (server.js) to minimize frontend tokens
 
 // JSON parsing and model calls moved to backend for security and efficiency
 
-async function analyzeCase(caseText) {
+// The backend streams the analysis as SSE (progress events with the
+// growing output-token count, then a final done/error event) so a
+// multi-minute Opus generation shows real movement instead of one
+// blocking fetch that only resolves at the very end.
+async function analyzeCase(caseText, onProgress) {
+  let res;
   try {
-    const res = await fetch(`${API_BASE}/analyze`, {
+    res = await fetch(`${API_BASE}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ caseText }),
     });
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new Error(`Backend ${res.status}: ${detail.slice(0, 200)}`);
-    }
-    return await res.json();
   } catch (e) {
     throw new Error("Analysis failed: " + e.message);
   }
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Analysis failed: Backend ${res.status}: ${detail.slice(0, 200)}`);
+  }
+  if (!res.body) return await res.json(); // fallback if streaming isn't supported
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let result = null;
+  let errorMsg = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      const block = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      const lines = block.split("\n");
+      const eventLine = lines.find((l) => l.startsWith("event:"));
+      const dataLine = lines.find((l) => l.startsWith("data:"));
+      if (!eventLine || !dataLine) continue;
+      const event = eventLine.slice(6).trim();
+      let data;
+      try { data = JSON.parse(dataLine.slice(5).trim()); } catch { continue; }
+
+      if (event === "progress") onProgress?.(data);
+      else if (event === "done") result = data;
+      else if (event === "error") errorMsg = data.message;
+    }
+  }
+
+  if (errorMsg) throw new Error("Analysis failed: " + errorMsg);
+  if (!result) throw new Error("Analysis failed: stream ended without a result.");
+  return result;
 }
 
 /* ================================================================
@@ -934,7 +1009,7 @@ function HealthCheck({ data }) {
 }
 
 /* ---------- Upload screen ---------- */
-function UploadScreen({ onFile, onText, onImport, busy, progress, error, library, onOpen, onDelete, libLoading }) {
+function UploadScreen({ onFile, onText, onImport, busy, progress, streamProgress, error, library, onOpen, onDelete, libLoading }) {
   const inputRef = useRef(null);
   const importRef = useRef(null);
   const [drag, setDrag] = useState(false);
@@ -968,7 +1043,7 @@ function UploadScreen({ onFile, onText, onImport, busy, progress, error, library
         </div>
 
         {busy ? (
-          <AnalysisProgress phase={progress} />
+          <AnalysisProgress phase={progress} streamProgress={streamProgress} />
         ) : pasteMode ? (
           <div className="rounded-xl bg-white/5 border border-white/10 p-4">
             <textarea
@@ -1120,7 +1195,7 @@ const TABS = [
 ];
 
 /* ---------- Analysis progress ---------- */
-function AnalysisProgress({ phase }) {
+function AnalysisProgress({ phase, streamProgress }) {
   const [now, setNow] = useState(Date.now());
   const startRef = useRef(Date.now());
   const phase1Ref = useRef(null);
@@ -1135,17 +1210,22 @@ function AnalysisProgress({ phase }) {
   if (phase === 0) {
     pct = Math.min(4, elapsed + 1);
     stage = "Extracting text from the PDF";
-  } else {
-    // The model call is a single long request, so progress is estimated
-    // from elapsed time (asymptotic toward 98% until the response lands).
-    const t1 = Math.max(0, (now - (phase1Ref.current ?? now)) / 1000);
-    pct = Math.min(98, Math.round(5 + 93 * (1 - Math.exp(-t1 / 90))));
+  } else if (streamProgress?.chars > 0) {
+    // Real progress from the growing JSON the model is streaming back,
+    // forwarded live from the backend — no more guessing from elapsed time.
+    pct = Math.min(99, Math.round(5 + 94 * (streamProgress.chars / streamProgress.expectedChars)));
     stage =
       pct < 20 ? "Reading the case & identifying the vertical" :
       pct < 40 ? "Mapping stakeholders & building pain chains" :
       pct < 60 ? "Quantifying value & drafting the collaboration plan" :
       pct < 80 ? "Competitive positioning & opportunity health check" :
-      "Assembling the briefing — deep analysis can take a few minutes";
+      "Assembling the briefing";
+  } else {
+    // Before the first streamed token count arrives, fall back to an
+    // elapsed-time estimate (asymptotic toward the point streaming takes over).
+    const t1 = Math.max(0, (now - (phase1Ref.current ?? now)) / 1000);
+    pct = Math.min(15, Math.round(5 + 10 * (1 - Math.exp(-t1 / 20))));
+    stage = "Sending the case to Claude";
   }
   const mm = Math.floor(elapsed / 60);
   const ss = String(elapsed % 60).padStart(2, "0");
@@ -1322,6 +1402,7 @@ export default function CaseAnalyzer() {
   const [tab, setTab] = useState("overview");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [streamProgress, setStreamProgress] = useState(null);
   const [error, setError] = useState(null);
 
   const [library, setLibrary] = useState([]);
@@ -1387,8 +1468,9 @@ export default function CaseAnalyzer() {
     setBusy(true);
     setError(null);
     setProgress(1);
+    setStreamProgress(null);
     try {
-      const result = await analyzeCase(caseText);
+      const result = await analyzeCase(caseText, setStreamProgress);
       setProgress(2);
       setCaseFile(result);
       setEditMode(false);
@@ -1405,6 +1487,7 @@ export default function CaseAnalyzer() {
     setBusy(true);
     setError(null);
     setProgress(0);
+    setStreamProgress(null);
     try {
       // Step 1 — extract plain text locally (no tokens).
       let caseText;
@@ -1420,7 +1503,7 @@ export default function CaseAnalyzer() {
       }
       // Step 2 — one Claude call.
       setProgress(1);
-      const result = await analyzeCase(caseText);
+      const result = await analyzeCase(caseText, setStreamProgress);
       setProgress(2);
       setCaseFile(result);
       setEditMode(false);
@@ -1446,7 +1529,8 @@ export default function CaseAnalyzer() {
           .font-display { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; }
         `}</style>
         <UploadScreen
-          onFile={analyze} onText={analyzeText} onImport={handleImport} busy={busy} progress={progress} error={error}
+          onFile={analyze} onText={analyzeText} onImport={handleImport} busy={busy} progress={progress}
+          streamProgress={streamProgress} error={error}
           library={library} onOpen={handleOpen} onDelete={handleDelete} libLoading={libLoading}
         />
       </>
