@@ -5,7 +5,7 @@ import {
   ShieldAlert, Lightbulb, MessageSquare, Pencil, Download, FileUp, Layers,
   ClipboardList, ClipboardCheck, Gauge, FileText, Upload, Loader2, RotateCcw,
   Search as SearchIcon, Sparkles, AlertCircle, Save, Trash2,
-  FolderOpen, Check, Users2, Plus, Copy, ChevronUp
+  FolderOpen, Check, Users2, Plus, Copy, ChevronUp, Presentation
 } from "lucide-react";
 
 /* ================================================================
@@ -275,6 +275,71 @@ function exportCaseFile(caseFile) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+// Slide-deck export (PDF + PPTX) — both generators are heavy and only used
+// occasionally, so they're dynamically imported on click rather than bundled
+// eagerly (same "load on demand" pattern already used for pdf.js above).
+function ExportDeckMenu({ caseFile }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(null); // null | "pdf" | "pptx"
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  const run = async (format) => {
+    setBusy(format);
+    try {
+      if (format === "pdf") {
+        const { downloadPdf } = await import("./export/PdfDeck.jsx");
+        await downloadPdf(caseFile);
+      } else {
+        const { downloadPptx } = await import("./export/pptxDeck.js");
+        await downloadPptx(caseFile);
+      }
+    } catch (e) {
+      console.error(`Deck export (${format}) failed:`, e);
+      alert(`Couldn't generate the ${format.toUpperCase()} deck. See console for details.`);
+    } finally {
+      setBusy(null);
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={!!busy}
+        className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white rounded-md px-2.5 py-1.5 hover:bg-white/10 disabled:opacity-60"
+      >
+        {busy ? <Loader2 size={13} className="animate-spin" /> : <Presentation size={13} />}
+        {busy ? `Generating ${busy.toUpperCase()}…` : "Export Deck"}
+        {!busy && <ChevronDown size={12} />}
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 w-40 rounded-md bg-white shadow-lg border border-slate-200 py-1 z-20">
+          <button
+            onClick={() => run("pdf")}
+            className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+          >
+            <FileText size={13} /> PDF
+          </button>
+          <button
+            onClick={() => run("pptx")}
+            className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+          >
+            <Presentation size={13} /> PowerPoint
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ================================================================
@@ -1683,8 +1748,9 @@ export default function CaseAnalyzer() {
                 onClick={() => exportCaseFile(caseFile)}
                 className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white rounded-md px-2.5 py-1.5 hover:bg-white/10"
               >
-                <Download size={13} /> Export
+                <Download size={13} /> Export JSON
               </button>
+              <ExportDeckMenu caseFile={caseFile} />
               <button
                 onClick={() => { setCaseFile(null); setProgress(0); setError(null); setEditMode(false); }}
                 className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white rounded-md px-2.5 py-1.5 hover:bg-white/10"
