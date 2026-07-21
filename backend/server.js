@@ -577,6 +577,16 @@ async function analyzeCase(caseText, onProgress) {
 
 // Routes
 
+// Wraps a route handler so a rejected promise or thrown error becomes a
+// logged 500 instead of an unhandled rejection — avoids repeating the same
+// try/catch in every CRUD route below.
+const asyncHandler = (fn) => (req, res) => {
+  Promise.resolve(fn(req, res)).catch((e) => {
+    console.error(e);
+    res.status(500).json({ error: e.message });
+  });
+};
+
 // Analizar texto (POST desde frontend después de extraer PDF)
 // Streams progress as SSE so a slow multi-minute generation shows real
 // movement instead of the client sitting on one blocking fetch.
@@ -607,51 +617,30 @@ app.post("/api/analyze", async (req, res) => {
 });
 
 // Guardar caso
-app.post("/api/cases", async (req, res) => {
-  try {
-    const { caseFile } = req.body;
-    const index = await saveCase(caseFile);
-    res.json(index);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
-  }
-});
+app.post("/api/cases", asyncHandler(async (req, res) => {
+  const { caseFile } = req.body;
+  const index = await saveCase(caseFile);
+  res.json(index);
+}));
 
 // Cargar índice de casos
-app.get("/api/cases", async (req, res) => {
-  try {
-    const index = await loadIndex();
-    res.json(index);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
-  }
-});
+app.get("/api/cases", asyncHandler(async (req, res) => {
+  const index = await loadIndex();
+  res.json(index);
+}));
 
 // Abrir caso específico
-app.get("/api/cases/:id", async (req, res) => {
-  try {
-    const caseFile = await fetchCase(req.params.id);
-    if (!caseFile)
-      return res.status(404).json({ error: "Case not found" });
-    res.json(caseFile);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
-  }
-});
+app.get("/api/cases/:id", asyncHandler(async (req, res) => {
+  const caseFile = await fetchCase(req.params.id);
+  if (!caseFile) return res.status(404).json({ error: "Case not found" });
+  res.json(caseFile);
+}));
 
 // Borrar caso
-app.delete("/api/cases/:id", async (req, res) => {
-  try {
-    const index = await deleteCase(req.params.id);
-    res.json(index);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
-  }
-});
+app.delete("/api/cases/:id", asyncHandler(async (req, res) => {
+  const index = await deleteCase(req.params.id);
+  res.json(index);
+}));
 
 // Health check
 app.get("/health", (req, res) => {

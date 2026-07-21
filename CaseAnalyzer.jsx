@@ -1573,6 +1573,14 @@ export default function CaseAnalyzer() {
 
   const updateField = (path, value) => setCaseFile((prev) => setAtPath(prev, path, value));
 
+  // Every entry point that hands the app a completed case (open from
+  // library, import, or a fresh analysis) lands on the same screen state.
+  const openCase = (cf) => {
+    setCaseFile(cf);
+    setTab("overview");
+    setEditMode(false);
+  };
+
   // Load the shared library once on mount.
   useEffect(() => {
     (async () => {
@@ -1601,7 +1609,7 @@ export default function CaseAnalyzer() {
     setError(null);
     try {
       const cf = await fetchCase(id);
-      if (cf) { setCaseFile(cf); setTab("overview"); setEditMode(false); }
+      if (cf) openCase(cf);
       else setError("That saved case could not be found (it may have been deleted by a teammate).");
     } catch (e) {
       setError("Could not open the case: " + (e?.message || String(e)));
@@ -1617,9 +1625,7 @@ export default function CaseAnalyzer() {
     try {
       const parsed = JSON.parse(await file.text());
       const cf = migrateCaseFile(parsed);
-      setCaseFile(cf);
-      setTab("overview");
-      setEditMode(false);
+      openCase(cf);
     } catch (e) {
       setError("Import failed: " + (e?.message || String(e)));
     }
@@ -1633,9 +1639,7 @@ export default function CaseAnalyzer() {
     try {
       const result = await analyzeCase(caseText, setStreamProgress);
       setProgress(2);
-      setCaseFile(result);
-      setEditMode(false);
-      setTab("overview");
+      openCase(result);
     } catch (e) {
       console.error(e);
       setError("Analysis failed. " + (e?.message || String(e)));
@@ -1666,9 +1670,7 @@ export default function CaseAnalyzer() {
       setProgress(1);
       const result = await analyzeCase(caseText, setStreamProgress);
       setProgress(2);
-      setCaseFile(result);
-      setEditMode(false);
-      setTab("overview");
+      openCase(result);
     } catch (e) {
       console.error(e);
       const msg = e?.message || String(e);
