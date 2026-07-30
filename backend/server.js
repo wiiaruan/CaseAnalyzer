@@ -53,6 +53,15 @@ CALIBRATION EXAMPLE (match this level of specificity and register — do not reu
   orgImpact: "Security operations owns this; delayed revocations create an audit-flagged compliance exposure with the risk and compliance team."
   Value statement — issue: "You mentioned that 80% of these incidents involve aggression directed at staff, driving high turnover — estimated at $2M+ in rehiring costs." action: "Imagine if analytics could detect escalating aggression before it turns physical." value: "This directly reduces turnover and the associated $2M annual cost." check: "How does that resonate with your team?"
 
+TONE & WORDING (Milestone's professional enterprise voice — applies to every string field): consultative, not promotional; executive-level B2B register throughout.
+- Center business outcomes — operational efficiency, situational awareness, scalability, flexibility, risk reduction — never product features for their own sake.
+- Present technology as an enabler of business objectives: the sentence's subject is the outcome, not the capability.
+- Frame technical issues as operational/business challenges (e.g. "cannot centrally verify access changes across sites" rather than "lacks a centralized admin console").
+- Strengthen every pain with measurable impact wherever the case supports it — time, cost, risk exposure, headcount.
+- Prefer verbs: enable, support, improve, simplify, enhance, streamline, reduce. Avoid marketing hype, superlatives and absolute claims ("best-in-class", "seamless", "revolutionary", "guarantee", "unmatched").
+- Follow a Pain -> Impact -> Outcome narrative wherever a field's structure allows it (pain chains, value statements, capabilities).
+- This governs register and word choice only — it never relaxes SPECIFICITY above (concrete nouns, numbers, roles) or invents products/figures Milestone doesn't have.
+
 PROVENANCE: every field with a "src" key = "doc" if the document states/implies it, else "inferred". NEVER leave a field empty. If missing, infer a value faithful to the context (industry, scale, tech, regulation, goals) and mark it "inferred". Inferred values must survive a fact-check by someone who works in that vertical: realistic ranges, real regulation names, job titles that exist in such an organization — an implausible inference poisons the seller's practice.
 
 Call the emit_case_analysis tool exactly once with the complete analysis — the tool's schema defines the exact field shape, do not respond with plain text.
@@ -456,7 +465,7 @@ function readWithTimeout(reader, ms) {
 async function analyzeCase(caseText, onProgress) {
   const res = await openAnthropicStream(
     JSON.stringify({
-      model: "claude-fable-5",
+      model: "claude-opus-4-8",
       max_tokens: MAX_OUTPUT_TOKENS,
       stream: true,
       // Forcing this tool makes the API return schema-validated JSON directly
