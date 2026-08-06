@@ -105,10 +105,10 @@ export function buildDeckModel(caseFile) {
       title: p.title,
       owner: p.owner,
       category: p.category,
+      painDescription: p.painDescription,
       pain: p.pain,
       causes: p.causes,
       capabilities: p.capabilities,
-      orgImpact: p.orgImpact,
       affects: p.affects || [],
     });
   });
@@ -144,7 +144,7 @@ export function buildDeckModel(caseFile) {
       breadcrumb: "Value",
       title: "Customer value",
       startIndex: i * 4,
-      items: items.map((d) => ({ title: d.driver, detail: `${d.mechanism} ${d.impact}`.trim() })),
+      items: items.map((d) => ({ title: d.metric, detail: `${d.baseline} → ${d.target}. ${d.impact}`.trim() })),
     });
   });
   const statements = value.statements || [];

@@ -150,10 +150,10 @@ function buildPainChain(pptx, s) {
   const slide = lightSlide(pptx, { breadcrumb: `Customer Pain #${s.index} of ${s.total}`, title: s.title });
   slide.addText(`Owner: ${s.owner}   ·   Category: ${s.category}`, { x: MARGIN, y: 1.18, w: CONTENT_W, h: 0.25, fontSize: 9.5, color: hx(TEXT_MUTED) });
   const cols = [
+    { label: "Situation", text: s.painDescription },
     { label: "Pain", text: s.pain },
     { label: "Causes", text: s.causes },
     { label: "Capabilities", text: s.capabilities },
-    { label: "Organizational impact", text: s.orgImpact },
   ];
   const gap = 0.18, w = (CONTENT_W - gap * 3) / 4, h = 3.0, y = 1.55;
   cols.forEach((c, i) => fourColCard(pptx, slide, { x: MARGIN + i * (w + gap), y, w, h, label: c.label, text: c.text }));

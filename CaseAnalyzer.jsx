@@ -1,12 +1,17 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useContext, createContext } from "react";
 import {
   Building2, AlertTriangle, Eye, TrendingUp, Swords, ChevronDown,
   ChevronRight, Flag, Users, Target, CheckCircle2, ArrowRight,
   ShieldAlert, Lightbulb, MessageSquare, Pencil, Download, FileUp, Layers,
   ClipboardList, ClipboardCheck, Gauge, FileText, Upload, Loader2, RotateCcw,
   Search as SearchIcon, Sparkles, AlertCircle, Save, Trash2,
-  FolderOpen, Check, Users2, Plus, Copy, ChevronUp, Presentation
+  FolderOpen, Check, Users2, Plus, Copy, ChevronUp, Presentation, Printer
 } from "lucide-react";
+
+// Forces collapsible cards (RfiSection, StakeholderCard) open — set to true
+// only inside the print-only tree so the printed PDF shows full content
+// instead of the collapsed-by-default screen state.
+const PrintForceOpenContext = createContext(false);
 
 /* ================================================================
    ██  CASE LIBRARY (via local backend)
@@ -196,10 +201,30 @@ async function analyzeCase(caseText, onProgress) {
   return result;
 }
 
+// Re-scores just the Health Check block against the case JSON as it stands
+// right now — cheap enough for one blocking request, no streaming needed.
+async function rerunHealthCheck(caseFile) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/health-check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caseFile }),
+    });
+  } catch (e) {
+    throw new Error("Health Check re-run failed: " + e.message);
+  }
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Health Check re-run failed: Backend ${res.status}: ${detail.slice(0, 200)}`);
+  }
+  return await res.json();
+}
+
 /* ================================================================
    ██  EXPORT / IMPORT (schema-versioned)
    ================================================================ */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 5;
 
 // Accepts a raw parsed JSON — either a versioned export envelope
 // ({app, schemaVersion, caseFile}) or a bare caseFile from any prior
@@ -211,17 +236,40 @@ function migrateCaseFile(raw) {
     throw new Error("This JSON does not look like a CaseAnalyzer export (missing meta).");
   }
 
-  // v1 pains used pain/consequence/impact; v2+ use pain/causes/capabilities/orgImpact.
+  // v1 pains used pain/consequence/impact; v2-v3 used pain/causes/capabilities/orgImpact
+  // as a separate step; v4 folded the organizational impact into the pain statement itself;
+  // v5 splits the factual situation back out into painDescription, leaving pain as only the
+  // consequence. Pre-v5 files have no clean split point, so painDescription starts empty and
+  // the full legacy text stays in pain — a trainer can move text across manually if desired.
   cf.pains = (cf.pains || []).map((p) => {
     const n = { ...p };
     if (n.causes === undefined && n.consequence !== undefined) n.causes = n.consequence;
-    if (n.orgImpact === undefined && n.impact !== undefined) n.orgImpact = n.impact;
     if (n.capabilities === undefined) n.capabilities = "";
+    if (n.painDescription === undefined) n.painDescription = "";
     if (!Array.isArray(n.affects)) n.affects = [];
+    const legacyOrgImpact = n.orgImpact !== undefined ? n.orgImpact : n.impact;
+    if (legacyOrgImpact) {
+      n.pain = n.pain ? `${n.pain} ${legacyOrgImpact}` : legacyOrgImpact;
+    }
     delete n.consequence;
     delete n.impact;
+    delete n.orgImpact;
     return n;
   });
+
+  // v1-v3 quantified value drivers used driver/mechanism/impact; v4 uses
+  // metric/baseline/target/impact. No baseline/target existed before, so this
+  // is a best-effort carry-forward, not a lossless mapping.
+  if (cf.value?.drivers?.length) {
+    cf.value = {
+      ...cf.value,
+      drivers: cf.value.drivers.map((d) => {
+        if (d.metric !== undefined) return d;
+        const { driver, mechanism, ...rest } = d;
+        return { metric: driver || "", baseline: "", target: mechanism || "", ...rest };
+      }),
+    };
+  }
 
   // v1 kept proof events under value; v2+ moved them to the consensus plan.
   if (!cf.consensus && cf.value?.proofEvents?.length) {
@@ -377,11 +425,13 @@ function SectionTitle({ icon: Icon, children, sub }) {
 
 /* ---------- Overview ---------- */
 function RfiSection({ s }) {
-  const [open, setOpen] = useState(false);
+  const forceOpen = useContext(PrintForceOpenContext);
+  const [openState, setOpen] = useState(false);
+  const open = openState || forceOpen;
   return (
     <div className={`rounded-lg border bg-white overflow-hidden ${s.critical ? "border-red-300" : "border-slate-200"}`}>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => setOpen(!openState)}
         className="w-full flex items-start gap-3 p-3.5 text-left hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
       >
         {open ? <ChevronDown size={16} className="mt-0.5 text-slate-400 shrink-0" /> : <ChevronRight size={16} className="mt-0.5 text-slate-400 shrink-0" />}
@@ -421,12 +471,14 @@ function RfiSection({ s }) {
 }
 
 function StakeholderCard({ p }) {
-  const [open, setOpen] = useState(false);
+  const forceOpen = useContext(PrintForceOpenContext);
+  const [openState, setOpen] = useState(false);
+  const open = openState || forceOpen;
   const inf = String(p.influence || "");
   const infCls = inf.startsWith("High") ? "bg-sky-100 text-sky-800" : inf.startsWith("Med") ? "bg-slate-100 text-slate-700" : "bg-slate-100 text-slate-500";
   return (
     <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-start gap-3 p-3.5 text-left hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
+      <button onClick={() => setOpen(!openState)} className="w-full flex items-start gap-3 p-3.5 text-left hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
         {open ? <ChevronDown size={16} className="mt-0.5 text-slate-400 shrink-0" /> : <ChevronRight size={16} className="mt-0.5 text-slate-400 shrink-0" />}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -654,17 +706,17 @@ function Pain({ data }) {
   const [open, setOpen] = useState(0);
   return (
     <div className="space-y-4">
-      <SectionTitle icon={AlertTriangle} sub="Pain → Causes → Capabilities → Organizational impact · criteria: Personal, Measurable, Negatively stated">
+      <SectionTitle icon={AlertTriangle} sub="Situation → Pain → Causes → Capabilities · Pain criteria: Personal, Measurable, Negatively stated, linked to strategy — kept separate from the factual Situation">
         Customer Pain
       </SectionTitle>
 
       {(data.pains || []).map((p, i) => {
         const isOpen = open === i;
         const steps = [
+          { label: "Situation", text: p.painDescription, cls: "bg-slate-50 border-slate-200", dot: "text-slate-500" },
           { label: "Pain", text: p.pain, cls: "bg-rose-50 border-rose-200", dot: "text-rose-600" },
           { label: "Causes", text: p.causes, cls: "bg-amber-50 border-amber-200", dot: "text-amber-600" },
           { label: "Capabilities", text: p.capabilities, cls: "bg-sky-50 border-sky-200", dot: "text-sky-600" },
-          { label: "Organizational impact", text: p.orgImpact, cls: "bg-red-50 border-red-300", dot: "text-red-700" },
         ];
         return (
           <div key={i} className="rounded-lg border border-slate-200 bg-white overflow-hidden">
@@ -676,6 +728,9 @@ function Pain({ data }) {
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-slate-900 text-sm">P{i + 1} — {p.title}<SrcChip src={p.src} /></div>
                 <div className="text-xs text-slate-500 mt-0.5">{p.category} · Owner: {p.owner}</div>
+                {p.painDescription && (
+                  <div className="text-xs text-slate-400 mt-0.5 line-clamp-1">{p.painDescription}</div>
+                )}
               </div>
             </button>
             {isOpen && (
@@ -770,19 +825,21 @@ function Value({ data }) {
 
       <div className="rounded-lg border border-slate-200 bg-white p-4 overflow-x-auto">
         <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Quantified value drivers</div>
-        <table className="w-full text-sm min-w-[560px]">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
-              <th className="py-2 pr-3 font-semibold">Driver</th>
-              <th className="py-2 pr-3 font-semibold">Mechanism</th>
-              <th className="py-2 font-semibold">Estimated impact</th>
+              <th className="py-2 pr-3 font-semibold">Metric / KPI</th>
+              <th className="py-2 pr-3 font-semibold">Baseline</th>
+              <th className="py-2 pr-3 font-semibold">Target</th>
+              <th className="py-2 font-semibold">$ Impact</th>
             </tr>
           </thead>
           <tbody>
             {(v.drivers || []).map((d, i) => (
               <tr key={i} className="border-b border-slate-50 last:border-0 align-top">
-                <td className="py-2 pr-3 font-medium text-slate-800">{d.driver}<SrcChip src={d.src} /></td>
-                <td className="py-2 pr-3 text-slate-600">{d.mechanism}</td>
+                <td className="py-2 pr-3 font-medium text-slate-800">{d.metric}<SrcChip src={d.src} /></td>
+                <td className="py-2 pr-3 text-slate-600">{d.baseline}</td>
+                <td className="py-2 pr-3 text-slate-600">{d.target}</td>
                 <td className="py-2 font-medium" style={{ color: "#0f766e" }}>{d.impact}</td>
               </tr>
             ))}
@@ -1043,13 +1100,33 @@ function HealthMeter({ score }) {
   );
 }
 
-function HealthCheck({ data }) {
+function HealthCheck({ data, onRerun, rerunning, rerunError }) {
   const hc = data.healthCheck || {};
   return (
     <div className="space-y-4">
-      <SectionTitle icon={Gauge} sub="Opportunity Health Check · scored only on what this document evidences about the sales process">
-        Health Check
-      </SectionTitle>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <SectionTitle icon={Gauge} sub="Opportunity Health Check · scored only on what this document evidences about the sales process">
+          Health Check
+        </SectionTitle>
+        {onRerun && (
+          <button
+            onClick={onRerun}
+            disabled={rerunning}
+            className="flex items-center gap-1.5 text-xs font-semibold rounded-md px-2.5 py-1.5 text-white disabled:opacity-60 shrink-0"
+            style={{ background: ACCENT }}
+            title="Re-score the Health Check against the case as it stands now, including any edits"
+          >
+            {rerunning ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+            {rerunning ? "Re-running…" : "Re-run Health Check"}
+          </button>
+        )}
+      </div>
+
+      {rerunError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 leading-relaxed">
+          {rerunError}
+        </div>
+      )}
 
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 leading-relaxed">
         A case briefing rarely documents live deal history — low scores here are expected and reflect the document, not a judgment on the opportunity. Use this to spot what to go verify with the customer.
@@ -1258,6 +1335,29 @@ const TABS = [
   { id: "competitive", label: "Competitive", icon: Swords, comp: Competitive },
   { id: "healthcheck", label: "Health Check", icon: Gauge, comp: HealthCheck },
 ];
+
+// Print-only view: every tab rendered full-length, one per printed page, in
+// the exact same components/styling as the on-screen tabs — this is what
+// "Print / Save as PDF" outputs, kept separate from the interactive screen
+// view (which only mounts the active tab).
+function PrintDeck({ caseFile }) {
+  const m = caseFile.meta || {};
+  return (
+    <div className="print-only">
+      <PrintForceOpenContext.Provider value={true}>
+        {TABS.map((t) => (
+          <section key={t.id} className="print-tab">
+            <div className="print-tab-header">
+              <span>Growth Activator · Case Briefing</span>
+              <span>{[m.customer, t.label].filter(Boolean).join(" — ")}</span>
+            </div>
+            <t.comp data={caseFile} />
+          </section>
+        ))}
+      </PrintForceOpenContext.Provider>
+    </div>
+  );
+}
 
 /* ---------- Analysis progress ---------- */
 function AnalysisProgress({ phase, streamProgress }) {
@@ -1570,8 +1670,23 @@ export default function CaseAnalyzer() {
   const [libLoading, setLibLoading] = useState(true);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
   const [editMode, setEditMode] = useState(false);
+  const [hcBusy, setHcBusy] = useState(false);
+  const [hcError, setHcError] = useState(null);
 
   const updateField = (path, value) => setCaseFile((prev) => setAtPath(prev, path, value));
+
+  const handleRerunHealthCheck = async () => {
+    setHcBusy(true);
+    setHcError(null);
+    try {
+      const healthCheck = await rerunHealthCheck(caseFile);
+      setCaseFile((prev) => ({ ...prev, healthCheck }));
+    } catch (e) {
+      setHcError(e?.message || String(e));
+    } finally {
+      setHcBusy(false);
+    }
+  };
 
   // Every entry point that hands the app a completed case (open from
   // library, import, or a fresh analysis) lands on the same screen state.
@@ -1704,12 +1819,27 @@ export default function CaseAnalyzer() {
   const m = caseFile.meta || {};
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-900">
+    <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&display=swap');
         .font-display { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; }
+
+        .print-only { display: none; }
+        @media print {
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .print-tab { break-before: page; padding: 0 6mm; }
+          .print-tab:first-child { break-before: avoid; }
+          .print-tab-header {
+            display: flex; justify-content: space-between; align-items: baseline;
+            font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8;
+            border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 14px;
+          }
+        }
       `}</style>
 
+      <div className="no-print min-h-screen bg-slate-100 font-sans text-slate-900">
       <header className="text-white" style={{ background: DARK }}>
         <div className="max-w-5xl mx-auto px-4 pt-5 pb-3">
           <div className="flex items-start justify-between gap-4">
@@ -1754,6 +1884,13 @@ export default function CaseAnalyzer() {
               </button>
               <ExportDeckMenu caseFile={caseFile} />
               <button
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white rounded-md px-2.5 py-1.5 hover:bg-white/10"
+                title="Print, or save as PDF with each tab on its own page"
+              >
+                <Printer size={13} /> Print
+              </button>
+              <button
                 onClick={() => { setCaseFile(null); setProgress(0); setError(null); setEditMode(false); }}
                 className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white rounded-md px-2.5 py-1.5 hover:bg-white/10"
               >
@@ -1791,6 +1928,8 @@ export default function CaseAnalyzer() {
       <main className="max-w-5xl mx-auto px-4 py-6">
         {editMode ? (
           <TabEditor data={caseFile} tabId={tab} onChange={updateField} />
+        ) : tab === "healthcheck" ? (
+          <Active data={caseFile} onRerun={handleRerunHealthCheck} rerunning={hcBusy} rerunError={hcError} />
         ) : (
           <Active data={caseFile} />
         )}
@@ -1802,6 +1941,9 @@ export default function CaseAnalyzer() {
           </span>
         </footer>
       </main>
-    </div>
+      </div>
+
+      <PrintDeck caseFile={caseFile} />
+    </>
   );
 }

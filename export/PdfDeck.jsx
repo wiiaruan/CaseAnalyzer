@@ -185,15 +185,15 @@ function FourColCard({ label, color, children }) {
   );
 }
 
-function PainChainSlide({ index, total, title, owner, category, pain, causes, capabilities, orgImpact, affects }) {
+function PainChainSlide({ index, total, title, owner, category, painDescription, pain, causes, capabilities, affects }) {
   return (
     <LightFrame breadcrumb={`Customer Pain #${index} of ${total}`} title={title}>
       <Text style={{ fontSize: 9.5, color: TEXT_MUTED, marginBottom: 10 }}>Owner: {owner}   ·   Category: {category}</Text>
       <View style={{ flexDirection: "row", gap: 8 }}>
+        <FourColCard label="Situation">{painDescription}</FourColCard>
         <FourColCard label="Pain">{pain}</FourColCard>
         <FourColCard label="Causes">{causes}</FourColCard>
         <FourColCard label="Capabilities">{capabilities}</FourColCard>
-        <FourColCard label="Organizational impact">{orgImpact}</FourColCard>
       </View>
       {affects.length ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 12 }}>
