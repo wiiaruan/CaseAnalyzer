@@ -706,14 +706,13 @@ function Pain({ data }) {
   const [open, setOpen] = useState(0);
   return (
     <div className="space-y-4">
-      <SectionTitle icon={AlertTriangle} sub="Situation → Pain → Causes → Capabilities · Pain criteria: Personal, Measurable, Negatively stated, linked to strategy — kept separate from the factual Situation">
+      <SectionTitle icon={AlertTriangle} sub="Pain → Causes → Capabilities · Pain criteria: Personal, Measurable, Negatively stated, linked to strategy — factual situation shown under each pain's title">
         Customer Pain
       </SectionTitle>
 
       {(data.pains || []).map((p, i) => {
         const isOpen = open === i;
         const steps = [
-          { label: "Situation", text: p.painDescription, cls: "bg-slate-50 border-slate-200", dot: "text-slate-500" },
           { label: "Pain", text: p.pain, cls: "bg-rose-50 border-rose-200", dot: "text-rose-600" },
           { label: "Causes", text: p.causes, cls: "bg-amber-50 border-amber-200", dot: "text-amber-600" },
           { label: "Capabilities", text: p.capabilities, cls: "bg-sky-50 border-sky-200", dot: "text-sky-600" },
@@ -729,7 +728,7 @@ function Pain({ data }) {
                 <div className="font-semibold text-slate-900 text-sm">P{i + 1} — {p.title}<SrcChip src={p.src} /></div>
                 <div className="text-xs text-slate-500 mt-0.5">{p.category} · Owner: {p.owner}</div>
                 {p.painDescription && (
-                  <div className="text-xs text-slate-400 mt-0.5 line-clamp-1">{p.painDescription}</div>
+                  <div className="text-sm text-slate-700 mt-1 leading-snug">{p.painDescription}</div>
                 )}
               </div>
             </button>

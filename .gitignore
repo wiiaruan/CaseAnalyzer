@@ -36,3 +36,7 @@ Thumbs.db
 # Temporary
 tmp/
 temp/
+
+# Local-only case data (internal Milestone material, keep out of public repo)
+Cases Json/
+*.code-workspace
