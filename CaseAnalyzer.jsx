@@ -5,7 +5,8 @@ import {
   ShieldAlert, Lightbulb, MessageSquare, Pencil, Download, FileUp, Layers,
   ClipboardList, ClipboardCheck, Gauge, FileText, Upload, Loader2, RotateCcw,
   Search as SearchIcon, Sparkles, AlertCircle, Save, Trash2,
-  FolderOpen, Check, Users2, Plus, Copy, ChevronUp, Presentation, Printer
+  FolderOpen, Check, Users2, Plus, Copy, ChevronUp, Presentation, Printer,
+  GraduationCap
 } from "lucide-react";
 
 // Forces collapsible cards (RfiSection, StakeholderCard) open — set to true
@@ -772,6 +773,218 @@ function Pain({ data }) {
   );
 }
 
+/* ---------- Training (EST level exercises) ---------- */
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const revealBtnCls =
+  "rounded-md px-3 py-1.5 text-xs font-semibold border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed";
+const answerBoxCls = "rounded-md bg-emerald-50 border border-emerald-200 p-2.5 text-sm text-slate-700 leading-snug whitespace-pre-line";
+const textareaCls = "w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-sky-300";
+
+function Level1Matching({ ex }) {
+  const [options] = useState(() => shuffleArray([...ex.pairs.map((p) => p.capability), ...(ex.distractors || [])]));
+  const [answers, setAnswers] = useState({});
+  const [checked, setChecked] = useState(false);
+  const score = ex.pairs.filter((p, i) => answers[i] === p.capability).length;
+
+  return (
+    <div className="space-y-2.5">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-sky-600">Level 1 — Matching</div>
+      {ex.instructions && <p className="text-xs text-slate-500">{ex.instructions}</p>}
+      <div className="space-y-1.5">
+        {ex.pairs.map((p, i) => {
+          const isCorrect = answers[i] === p.capability;
+          return (
+            <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+              <div className="text-sm text-slate-700 sm:flex-1">{p.requirement}</div>
+              <select
+                value={answers[i] || ""}
+                onChange={(e) => { setAnswers({ ...answers, [i]: e.target.value }); setChecked(false); }}
+                className={`text-sm rounded-md border px-2 py-1.5 sm:w-72 shrink-0 focus:outline-none focus:ring-2 focus:ring-sky-300 ${
+                  checked ? (isCorrect ? "border-emerald-400 bg-emerald-50" : "border-red-400 bg-red-50") : "border-slate-300"
+                }`}
+              >
+                <option value="">— choose capability —</option>
+                {options.map((o, k) => <option key={k} value={o}>{o}</option>)}
+              </select>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setChecked(true)}
+          className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+          style={{ background: ACCENT }}
+        >
+          Check answers
+        </button>
+        {checked && <span className="text-xs font-semibold text-slate-600">{score}/{ex.pairs.length} correct</span>}
+      </div>
+    </div>
+  );
+}
+
+function Level2Derivation({ ex }) {
+  const [answer, setAnswer] = useState("");
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="space-y-2.5">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Level 2 — Derivation</div>
+      <div className="rounded-md bg-amber-50 border border-amber-200 p-2.5 text-sm text-slate-700 italic leading-snug">“{ex.statement}”</div>
+      <textarea
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        rows={3}
+        placeholder="Sketch the solution aloud — which layers, and why…"
+        className={textareaCls}
+      />
+      <button type="button" onClick={() => setRevealed((r) => !r)} className={revealBtnCls}>
+        {revealed ? "Hide expected answer" : "Reveal expected answer"}
+      </button>
+      {revealed && <div className={answerBoxCls}>{ex.expectedComposition}</div>}
+    </div>
+  );
+}
+
+function Level3Diagnosis({ ex, painDescription, causes }) {
+  const [answer, setAnswer] = useState("");
+  const [revealed, setRevealed] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [running]);
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+  const ss = String(elapsed % 60).padStart(2, "0");
+
+  return (
+    <div className="space-y-2.5">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Level 3 — Diagnosis</div>
+      <div className="rounded-md bg-rose-50 border border-rose-200 p-2.5 space-y-1.5">
+        {painDescription && <div className="text-sm text-slate-700 leading-snug">{painDescription}</div>}
+        {causes && <div className="text-sm text-slate-600 leading-snug">{causes}</div>}
+        {ex.axisHint && <div className="text-[11px] font-semibold text-rose-700">Axis: {ex.axisHint}</div>}
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setRunning((r) => !r)}
+          className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+          style={{ background: running ? "#dc2626" : ACCENT }}
+        >
+          {running ? "Stop" : "Start"} timer
+        </button>
+        {elapsed > 0 && <span className="font-display text-sm font-bold text-slate-700 tabular-nums">{mm}:{ss}</span>}
+      </div>
+      <textarea
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        rows={4}
+        placeholder="Derive the requirements, map the solution across layers, decide where to stop…"
+        className={textareaCls}
+      />
+      <button type="button" onClick={() => setRevealed((r) => !r)} className={revealBtnCls}>
+        {revealed ? "Hide rubric" : "Reveal rubric"}
+      </button>
+      {revealed && <div className={answerBoxCls}>{ex.rubric}</div>}
+    </div>
+  );
+}
+
+function Level4Discrimination({ ex }) {
+  const [choice, setChoice] = useState(null);
+  const [justification, setJustification] = useState("");
+  const [revealed, setRevealed] = useState(false);
+  const optionCls = (opt) => {
+    const base = "text-left rounded-lg border p-3 text-sm flex-1 leading-snug focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400";
+    if (!revealed) return `${base} ${choice === opt ? "border-sky-400 bg-sky-50" : "border-slate-200 bg-white hover:bg-slate-50"}`;
+    if (opt === ex.correctOption) return `${base} border-emerald-400 bg-emerald-50`;
+    if (choice === opt) return `${base} border-red-400 bg-red-50`;
+    return `${base} border-slate-200 bg-white opacity-60`;
+  };
+  return (
+    <div className="space-y-2.5">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-violet-600">Level 4 — Discrimination</div>
+      {ex.scenario && <p className="text-sm text-slate-600 leading-snug">{ex.scenario}</p>}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <button type="button" onClick={() => !revealed && setChoice("A")} className={optionCls("A")}>{ex.optionA}</button>
+        <button type="button" onClick={() => !revealed && setChoice("B")} className={optionCls("B")}>{ex.optionB}</button>
+      </div>
+      <textarea
+        value={justification}
+        onChange={(e) => setJustification(e.target.value)}
+        rows={2}
+        placeholder="Justify the choice — the justification is what's marked, not the pick itself…"
+        className={textareaCls}
+      />
+      <button type="button" onClick={() => setRevealed((r) => !r)} disabled={!choice} className={revealBtnCls}>
+        {revealed ? "Hide answer" : "Reveal answer"}
+      </button>
+      {revealed && <div className={answerBoxCls}>{ex.explanation}</div>}
+    </div>
+  );
+}
+
+function Training({ data }) {
+  const [open, setOpen] = useState(0);
+  const painsWithExercises = (data.pains || [])
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) => p.exercises);
+
+  return (
+    <div className="space-y-4">
+      <SectionTitle icon={GraduationCap} sub="Level 1-4 exercises for Essential Solution Training participants">
+        Training
+      </SectionTitle>
+
+      {painsWithExercises.length === 0 ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500">
+          This case has no training exercises attached.
+        </div>
+      ) : (
+        painsWithExercises.map(({ p, i }, k) => {
+          const isOpen = open === k;
+          return (
+            <div key={i} className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+              <button
+                onClick={() => setOpen(isOpen ? -1 : k)}
+                className="w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+              >
+                {isOpen ? <ChevronDown size={16} className="text-slate-400 shrink-0" /> : <ChevronRight size={16} className="text-slate-400 shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-slate-900 text-sm">P{i + 1} — {p.title}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{p.category} · Owner: {p.owner}</div>
+                </div>
+              </button>
+              {isOpen && (
+                <div className="px-4 pb-4 space-y-5">
+                  {p.exercises.level1 && <Level1Matching ex={p.exercises.level1} />}
+                  {p.exercises.level2 && <Level2Derivation ex={p.exercises.level2} />}
+                  {p.exercises.level3 && (
+                    <Level3Diagnosis ex={p.exercises.level3} painDescription={p.painDescription} causes={p.causes} />
+                  )}
+                  {p.exercises.level4 && <Level4Discrimination ex={p.exercises.level4} />}
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 /* ---------- Vision ---------- */
 function Vision({ data }) {
   const v = data.vision || {};
@@ -1333,7 +1546,14 @@ const TABS = [
   { id: "consensus", label: "Consensus", icon: ClipboardCheck, comp: Consensus },
   { id: "competitive", label: "Competitive", icon: Swords, comp: Competitive },
   { id: "healthcheck", label: "Health Check", icon: Gauge, comp: HealthCheck },
+  { id: "training", label: "Training", icon: GraduationCap, comp: Training },
 ];
+
+// The Training tab only makes sense for cases that carry EST exercise content
+// (added by hand to pains[].exercises, never by the extraction prompt) — real
+// customer cases never populate it, so it stays out of the nav and print output.
+const visibleTabs = (cf) =>
+  TABS.filter((t) => t.id !== "training" || (cf.pains || []).some((p) => p.exercises));
 
 // Print-only view: every tab rendered full-length, one per printed page, in
 // the exact same components/styling as the on-screen tabs — this is what
@@ -1344,7 +1564,7 @@ function PrintDeck({ caseFile }) {
   return (
     <div className="print-only">
       <PrintForceOpenContext.Provider value={true}>
-        {TABS.map((t) => (
+        {visibleTabs(caseFile).map((t) => (
           <section key={t.id} className="print-tab">
             <div className="print-tab-header">
               <span>Growth Activator · Case Briefing</span>
@@ -1427,6 +1647,7 @@ const TAB_EDIT_KEYS = {
   consensus: ["consensus"],
   competitive: ["competitive"],
   healthcheck: ["healthCheck"],
+  training: ["pains"],
 };
 
 function setAtPath(obj, path, value) {
@@ -1900,7 +2121,7 @@ export default function CaseAnalyzer() {
         </div>
 
         <nav className="max-w-5xl mx-auto px-4 flex gap-1 overflow-x-auto">
-          {TABS.map((t) => {
+          {visibleTabs(caseFile).map((t) => {
             const active = t.id === tab;
             return (
               <button
