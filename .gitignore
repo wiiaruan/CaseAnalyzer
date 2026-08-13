@@ -40,3 +40,6 @@ temp/
 # Local-only case data (internal Milestone material, keep out of public repo)
 Cases Json/
 *.code-workspace
+
+# Case sync hook output (see scripts/git-hooks/post-commit)
+scripts/.last-case-sync.log

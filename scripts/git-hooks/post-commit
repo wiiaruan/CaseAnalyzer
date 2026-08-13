@@ -1,0 +1,20 @@
+#!/bin/sh
+# Auto-syncs local Cases Json/*.json to the production backend after every
+# commit in this repo. Cases Json/ is gitignored (internal Milestone
+# material, never pushed to GitHub) so this can't run as CI — it only runs
+# here, reading straight off disk. Non-fatal: a sync failure never blocks
+# the commit.
+#
+# This file is the tracked source of copy; the live hook lives at
+# .git/hooks/post-commit (git doesn't version-control that directory). To
+# (re)install after a fresh clone or if hooks get reset:
+#   cp scripts/git-hooks/post-commit .git/hooks/post-commit
+#   chmod +x .git/hooks/post-commit
+#
+# To disable: delete .git/hooks/post-commit (see Cases Json/A/CHANGELOG.md
+# for the tradeoff note on why you might want to, later).
+
+ROOT="$(git rev-parse --show-toplevel)"
+LOG="$ROOT/scripts/.last-case-sync.log"
+
+( node "$ROOT/scripts/sync-cases.js" > "$LOG" 2>&1 || echo "Case sync failed — see $LOG" >&2 ) &
