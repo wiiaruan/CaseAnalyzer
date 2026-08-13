@@ -787,6 +787,106 @@ const revealBtnCls =
   "rounded-md px-3 py-1.5 text-xs font-semibold border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed";
 const answerBoxCls = "rounded-md bg-emerald-50 border border-emerald-200 p-2.5 text-sm text-slate-700 leading-snug whitespace-pre-line";
 const textareaCls = "w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-sky-300";
+const levelCardCls = "rounded-lg border border-slate-200 p-4 space-y-2.5";
+
+// Each level gets one accent color, used consistently for its badge, statement
+// box and interactive states — this is what lets a participant tell at a
+// glance which exercise (and which of its own rows) they're looking at.
+const LEVEL_BADGE = {
+  1: "bg-sky-100 text-sky-700",
+  2: "bg-amber-100 text-amber-700",
+  3: "bg-rose-100 text-rose-700",
+  4: "bg-violet-100 text-violet-700",
+};
+function LevelBadge({ level, children }) {
+  return (
+    <span className={`inline-flex items-center rounded-full text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 ${LEVEL_BADGE[level]}`}>
+      {children}
+    </span>
+  );
+}
+
+// Every exercise gets a short, fixed "consigna" line so a participant always
+// knows what they're being asked to do — falls back to a level-appropriate
+// default when the case data doesn't carry a custom ex.instructions string
+// (only Level 1 exports have historically set one).
+function ExerciseBrief({ children }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md bg-slate-50 border border-slate-200 px-3 py-2">
+      <Target size={13} className="mt-0.5 shrink-0 text-slate-400" />
+      <p className="text-xs text-slate-600 leading-snug">{children}</p>
+    </div>
+  );
+}
+const DEFAULT_INSTRUCTIONS = {
+  1: "Match each requirement on the left to the capability that satisfies it.",
+  2: "Read the customer statement, then say out loud which layers you'd bring together and why — before you check the expected composition.",
+  3: "Diagnose the pain, derive the requirements, and map the solution across layers. Time yourself, then compare your answer against the rubric.",
+  4: "Pick the option you'd defend to the customer and justify it in writing — the justification is what's graded, not the pick.",
+};
+
+// Custom listbox for Level 1's matching rows — plain <select> can't grey out
+// an option that another row already claimed, and this is a 1-to-1 matching
+// exercise where reusing the same capability across rows is always wrong.
+function MatchSelect({ value, options, usedElsewhere, onChange, checked, isCorrect }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <div className="relative sm:w-72 shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`flex items-center justify-between gap-2 w-full text-left text-sm rounded-md border px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-300 ${
+          checked ? (isCorrect ? "border-emerald-400 bg-emerald-50" : "border-red-400 bg-red-50") : "border-slate-300"
+        }`}
+      >
+        <span className={`truncate ${value ? "text-slate-700" : "text-slate-400"}`}>{value || "— choose capability —"}</span>
+        <ChevronDown size={14} className="shrink-0 text-slate-400" />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 mt-1 rounded-md bg-white shadow-lg border border-slate-200 py-1 z-20 max-h-64 overflow-y-auto">
+          <button
+            type="button"
+            onClick={() => { onChange(""); setOpen(false); }}
+            className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs leading-snug text-slate-400 hover:bg-slate-100"
+          >
+            <Check size={12} className="shrink-0 opacity-0" />
+            <span className="truncate">— choose capability —</span>
+          </button>
+          {options.map((o, k) => {
+            const takenElsewhere = usedElsewhere.has(o) && o !== value;
+            return (
+              <button
+                key={k}
+                type="button"
+                disabled={takenElsewhere}
+                onClick={() => { onChange(o); setOpen(false); }}
+                className={`flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs leading-snug ${
+                  takenElsewhere
+                    ? "text-slate-300 cursor-not-allowed"
+                    : o === value
+                    ? "text-sky-700 bg-sky-50 font-semibold"
+                    : "text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <Check size={12} className={`shrink-0 ${o === value ? "opacity-100" : "opacity-0"}`} />
+                <span className="truncate">{o}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Level1Matching({ ex }) {
   const [options] = useState(() => shuffleArray([...ex.pairs.map((p) => p.capability), ...(ex.distractors || [])]));
@@ -795,25 +895,34 @@ function Level1Matching({ ex }) {
   const score = ex.pairs.filter((p, i) => answers[i] === p.capability).length;
 
   return (
-    <div className="space-y-2.5">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-sky-600">Level 1 — Matching</div>
-      {ex.instructions && <p className="text-xs text-slate-500">{ex.instructions}</p>}
-      <div className="space-y-1.5">
+    <div className={levelCardCls}>
+      <LevelBadge level={1}>Level 1 · Matching</LevelBadge>
+      <ExerciseBrief>{ex.instructions || DEFAULT_INSTRUCTIONS[1]}</ExerciseBrief>
+      <div className="space-y-2">
         {ex.pairs.map((p, i) => {
           const isCorrect = answers[i] === p.capability;
+          const usedElsewhere = new Set(
+            Object.entries(answers).filter(([k]) => Number(k) !== i).map(([, v]) => v)
+          );
           return (
-            <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-              <div className="text-sm text-slate-700 sm:flex-1">{p.requirement}</div>
-              <select
+            <div
+              key={i}
+              className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5"
+            >
+              <div className="flex items-start gap-2 sm:flex-1 min-w-0">
+                <span className="mt-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-sky-100 text-sky-700 text-[10px] font-bold shrink-0">
+                  {i + 1}
+                </span>
+                <div className="text-sm text-slate-700 leading-snug">{p.requirement}</div>
+              </div>
+              <MatchSelect
                 value={answers[i] || ""}
-                onChange={(e) => { setAnswers({ ...answers, [i]: e.target.value }); setChecked(false); }}
-                className={`text-sm rounded-md border px-2 py-1.5 sm:w-72 shrink-0 focus:outline-none focus:ring-2 focus:ring-sky-300 ${
-                  checked ? (isCorrect ? "border-emerald-400 bg-emerald-50" : "border-red-400 bg-red-50") : "border-slate-300"
-                }`}
-              >
-                <option value="">— choose capability —</option>
-                {options.map((o, k) => <option key={k} value={o}>{o}</option>)}
-              </select>
+                options={options}
+                usedElsewhere={usedElsewhere}
+                onChange={(v) => { setAnswers({ ...answers, [i]: v }); setChecked(false); }}
+                checked={checked}
+                isCorrect={isCorrect}
+              />
             </div>
           );
         })}
@@ -837,8 +946,9 @@ function Level2Derivation({ ex }) {
   const [answer, setAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
   return (
-    <div className="space-y-2.5">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Level 2 — Derivation</div>
+    <div className={levelCardCls}>
+      <LevelBadge level={2}>Level 2 · Derivation</LevelBadge>
+      <ExerciseBrief>{ex.instructions || DEFAULT_INSTRUCTIONS[2]}</ExerciseBrief>
       <div className="rounded-md bg-amber-50 border border-amber-200 p-2.5 text-sm text-slate-700 italic leading-snug">“{ex.statement}”</div>
       <textarea
         value={answer}
@@ -869,8 +979,9 @@ function Level3Diagnosis({ ex, painDescription, causes }) {
   const ss = String(elapsed % 60).padStart(2, "0");
 
   return (
-    <div className="space-y-2.5">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Level 3 — Diagnosis</div>
+    <div className={levelCardCls}>
+      <LevelBadge level={3}>Level 3 · Diagnosis</LevelBadge>
+      <ExerciseBrief>{ex.instructions || DEFAULT_INSTRUCTIONS[3]}</ExerciseBrief>
       <div className="rounded-md bg-rose-50 border border-rose-200 p-2.5 space-y-1.5">
         {painDescription && <div className="text-sm text-slate-700 leading-snug">{painDescription}</div>}
         {causes && <div className="text-sm text-slate-600 leading-snug">{causes}</div>}
@@ -914,8 +1025,9 @@ function Level4Discrimination({ ex }) {
     return `${base} border-slate-200 bg-white opacity-60`;
   };
   return (
-    <div className="space-y-2.5">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-violet-600">Level 4 — Discrimination</div>
+    <div className={levelCardCls}>
+      <LevelBadge level={4}>Level 4 · Discrimination</LevelBadge>
+      <ExerciseBrief>{ex.instructions || DEFAULT_INSTRUCTIONS[4]}</ExerciseBrief>
       {ex.scenario && <p className="text-sm text-slate-600 leading-snug">{ex.scenario}</p>}
       <div className="flex flex-col sm:flex-row gap-2">
         <button type="button" onClick={() => !revealed && setChoice("A")} className={optionCls("A")}>{ex.optionA}</button>
@@ -968,7 +1080,7 @@ function Training({ data }) {
                 </div>
               </button>
               {isOpen && (
-                <div className="px-4 pb-4 space-y-5">
+                <div className="px-4 pb-4 space-y-3">
                   {p.exercises.level1 && <Level1Matching ex={p.exercises.level1} />}
                   {p.exercises.level2 && <Level2Derivation ex={p.exercises.level2} />}
                   {p.exercises.level3 && (
