@@ -1552,8 +1552,12 @@ const TABS = [
 // The Training tab only makes sense for cases that carry EST exercise content
 // (added by hand to pains[].exercises, never by the extraction prompt) — real
 // customer cases never populate it, so it stays out of the nav and print output.
+// Consensus is temporarily hidden (not in use yet) but kept in source in case
+// it gets reinstated later.
 const visibleTabs = (cf) =>
-  TABS.filter((t) => t.id !== "training" || (cf.pains || []).some((p) => p.exercises));
+  TABS.filter((t) => t.id !== "consensus").filter(
+    (t) => t.id !== "training" || (cf.pains || []).some((p) => p.exercises)
+  );
 
 // Print-only view: every tab rendered full-length, one per printed page, in
 // the exact same components/styling as the on-screen tabs — this is what
