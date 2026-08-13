@@ -29,13 +29,12 @@ collaboration plan, competitive positioning and an opportunity health check.
 
 ## Conventions that matter
 
-- The analysis JSON schema is defined inside `EXTRACTION_PROMPT` in
-  `backend/server.js`. When changing the schema, update ALL of:
-  1. the JSON template + instructions in the prompt,
-  2. the matching tab component and `TABS` array in `CaseAnalyzer.jsx`,
-  3. `TAB_EDIT_KEYS` (Edit Mode) in `CaseAnalyzer.jsx`,
-  4. `migrateCaseFile()` so imports of older exports still open
-     (bump `SCHEMA_VERSION` when the change is breaking).
+- The analysis JSON shape is enforced by `CASE_ANALYSIS_SCHEMA` (the tool
+  `input_schema`) and described in prose by `EXTRACTION_PROMPT`, both in
+  `backend/server.js` — two separate objects that must agree. Changing the
+  schema touches five places; see the `case-schema` skill
+  (`.claude/skills/case-schema/SKILL.md`) for the full checklist and exact
+  anchors before making the change.
 - Icons come from `lucide-react@0.263` — verify an icon exists in
   `node_modules/lucide-react/dist/esm/icons/` before importing it; missing
   icons crash the whole app at load with a blank page.

@@ -41,5 +41,11 @@ temp/
 Cases Json/
 *.code-workspace
 
+# Local-only Claude Code skills that draw on internal Milestone material
+# (MSP certification exam bank, EST training design) sourced from Cases Json/ —
+# keep out of public repo, same reasoning as above.
+.claude/skills/xprotect-portfolio/
+.claude/skills/est-exercise-builder/
+
 # Case sync hook output (see scripts/git-hooks/post-commit)
 scripts/.last-case-sync.log
