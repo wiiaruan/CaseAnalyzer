@@ -840,26 +840,26 @@ function MatchSelect({ value, options, usedElsewhere, onChange, checked, isCorre
   }, [open]);
 
   return (
-    <div className="relative sm:w-72 shrink-0" ref={ref}>
+    <div className="relative sm:w-80 shrink-0" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center justify-between gap-2 w-full text-left text-sm rounded-md border px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-300 ${
+        className={`flex items-start justify-between gap-2 w-full text-left text-sm rounded-md border px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-300 ${
           checked ? (isCorrect ? "border-emerald-400 bg-emerald-50" : "border-red-400 bg-red-50") : "border-slate-300"
         }`}
       >
-        <span className={`truncate ${value ? "text-slate-700" : "text-slate-400"}`}>{value || "— choose capability —"}</span>
-        <ChevronDown size={14} className="shrink-0 text-slate-400" />
+        <span className={`leading-snug ${value ? "text-slate-700" : "text-slate-400"}`}>{value || "— choose capability —"}</span>
+        <ChevronDown size={14} className="shrink-0 text-slate-400 mt-0.5" />
       </button>
       {open && (
         <div className="absolute left-0 right-0 mt-1 rounded-md bg-white shadow-lg border border-slate-200 py-1 z-20 max-h-64 overflow-y-auto">
           <button
             type="button"
             onClick={() => { onChange(""); setOpen(false); }}
-            className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs leading-snug text-slate-400 hover:bg-slate-100"
+            className="flex items-start gap-2 w-full text-left px-3 py-1.5 text-xs leading-snug text-slate-400 hover:bg-slate-100"
           >
-            <Check size={12} className="shrink-0 opacity-0" />
-            <span className="truncate">— choose capability —</span>
+            <Check size={12} className="shrink-0 opacity-0 mt-0.5" />
+            <span>— choose capability —</span>
           </button>
           {options.map((o, k) => {
             const takenElsewhere = usedElsewhere.has(o) && o !== value;
@@ -869,7 +869,7 @@ function MatchSelect({ value, options, usedElsewhere, onChange, checked, isCorre
                 type="button"
                 disabled={takenElsewhere}
                 onClick={() => { onChange(o); setOpen(false); }}
-                className={`flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs leading-snug ${
+                className={`flex items-start gap-2 w-full text-left px-3 py-1.5 text-xs leading-snug ${
                   takenElsewhere
                     ? "text-slate-300 cursor-not-allowed"
                     : o === value
@@ -877,8 +877,8 @@ function MatchSelect({ value, options, usedElsewhere, onChange, checked, isCorre
                     : "text-slate-700 hover:bg-slate-100"
                 }`}
               >
-                <Check size={12} className={`shrink-0 ${o === value ? "opacity-100" : "opacity-0"}`} />
-                <span className="truncate">{o}</span>
+                <Check size={12} className={`shrink-0 mt-0.5 ${o === value ? "opacity-100" : "opacity-0"}`} />
+                <span>{o}</span>
               </button>
             );
           })}
