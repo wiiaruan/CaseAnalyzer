@@ -6,7 +6,7 @@ import {
   ClipboardList, ClipboardCheck, Gauge, FileText, Upload, Loader2, RotateCcw,
   Search as SearchIcon, Sparkles, AlertCircle, Save, Trash2,
   FolderOpen, Check, Users2, Plus, Copy, ChevronUp, Presentation, Printer,
-  GraduationCap
+  GraduationCap, Dices
 } from "lucide-react";
 
 // Forces collapsible cards (RfiSection, StakeholderCard) open — set to true
@@ -1250,13 +1250,40 @@ function Consensus({ data }) {
 }
 
 /* ---------- Value Grid ---------- */
+function quadrantOf(cv, uq) {
+  if (uq >= 5) return cv >= 5 ? "Differentiators" : "Cool stuff";
+  return cv >= 5 ? "Core" : "Trivial";
+}
+
+function quadrantReason(actual, d) {
+  const u = d.uniqueness, v = d.customerValue;
+  switch (actual) {
+    case "Differentiators":
+      return `High uniqueness (${u}/10) and high customer value (${v}/10) — this is a capability to lead with.`;
+    case "Cool stuff":
+      return `High uniqueness (${u}/10) but limited customer value here (${v}/10) — impressive, but it won't move this deal.`;
+    case "Core":
+      return `High customer value (${v}/10) but low uniqueness (${u}/10) — expected table stakes, not a differentiator.`;
+    default:
+      return `Low uniqueness (${u}/10) and low customer value (${v}/10) for this deal — not worth leading with.`;
+  }
+}
+
 function ValueGrid({ items }) {
   const pts = (items || []).filter((d) => typeof d.uniqueness === "number" && typeof d.customerValue === "number");
+  const svgRef = useRef(null);
+  const [order] = useState(() => shuffleArray(pts.map((_, i) => i)));
+  const [placed, setPlaced] = useState({});
+  const [checked, setChecked] = useState(false);
+  const [dragIdx, setDragIdx] = useState(null);
+
   if (pts.length === 0) return null;
 
-  const left = 46, right = 314, top = 14, bottom = 240;
+  const left = 46, right = 314, top = 14, bottom = 240, trayY = 300;
   const x = (cv) => left + (Math.max(0, Math.min(10, cv)) / 10) * (right - left);
   const y = (uq) => bottom - (Math.max(0, Math.min(10, uq)) / 10) * (bottom - top);
+  const invCv = (px) => Math.max(0, Math.min(10, ((px - left) / (right - left)) * 10));
+  const invUq = (px) => Math.max(0, Math.min(10, ((bottom - px) / (bottom - top)) * 10));
   const midX = (left + right) / 2;
   const midY = (top + bottom) / 2;
 
@@ -1267,10 +1294,50 @@ function ValueGrid({ items }) {
     { label: "Core", x: right - 4, y: bottom - 6, anchor: "end" },
   ];
 
+  const clientToPlot = (clientX, clientY) => {
+    const svg = svgRef.current;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: left, y: bottom };
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: Math.max(left, Math.min(right, p.x)), y: Math.max(top, Math.min(bottom, p.y)) };
+  };
+
+  const onDown = (i) => (e) => {
+    if (checked) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setPlaced((prev) => ({ ...prev, [i]: clientToPlot(e.clientX, e.clientY) }));
+    setDragIdx(i);
+  };
+  const onMove = (e) => {
+    if (dragIdx === null || checked) return;
+    setPlaced((prev) => ({ ...prev, [dragIdx]: clientToPlot(e.clientX, e.clientY) }));
+  };
+  const onUp = () => setDragIdx(null);
+
+  const trayItems = order.filter((i) => placed[i] === undefined);
+  const score = pts.reduce((s, d, i) => {
+    const g = placed[i];
+    if (!g) return s;
+    return s + (quadrantOf(invCv(g.x), invUq(g.y)) === quadrantOf(d.customerValue, d.uniqueness) ? 1 : 0);
+  }, 0);
+
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Value Grid — uniqueness vs. customer value</div>
-      <svg viewBox="0 0 340 300" className="w-full max-w-md mx-auto" role="img" aria-label="Value grid plotting differentiators by uniqueness and customer value">
+      <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Value Grid — uniqueness vs. customer value</div>
+      <p className="text-[11px] text-slate-500 mb-2">Drag each capability onto the grid where you think it belongs, then check.</p>
+      <svg
+        ref={svgRef}
+        viewBox="0 0 340 320"
+        className="w-full max-w-md mx-auto touch-none select-none"
+        role="img"
+        aria-label="Drag each capability onto the grid by uniqueness and customer value"
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+      >
         <rect x={left} y={top} width={right - left} height={bottom - top} fill="#f8fafc" stroke="#e2e8f0" />
         <line x1={midX} y1={top} x2={midX} y2={bottom} stroke="#e2e8f0" strokeWidth="1" />
         <line x1={left} y1={midY} x2={right} y2={midY} stroke="#e2e8f0" strokeWidth="1" />
@@ -1285,13 +1352,39 @@ function ValueGrid({ items }) {
         <text x={left - 34} y={(top + bottom) / 2} textAnchor="middle" className="fill-slate-500" style={{ fontSize: 10, fontWeight: 600 }} transform={`rotate(-90 ${left - 34} ${(top + bottom) / 2})`}>
           Uniqueness →
         </text>
-        {pts.map((d, i) => {
+
+        {checked && pts.map((d, i) => {
           const cx = x(d.customerValue), cy = y(d.uniqueness);
-          const r = i === 0 ? 10 : 8;
+          const g = placed[i];
           return (
-            <g key={i}>
-              <circle cx={cx} cy={cy} r={r} fill={ACCENT} stroke="#fff" strokeWidth={i === 0 ? 2 : 1.5} />
-              <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" className="fill-white" style={{ fontSize: 10, fontWeight: 700 }}>
+            <g key={"answer" + i}>
+              {g && <line x1={g.x} y1={g.y} x2={cx} y2={cy} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" />}
+              <circle cx={cx} cy={cy} r={9} fill="#fff" stroke={ACCENT} strokeWidth="2" strokeDasharray="2,2" />
+            </g>
+          );
+        })}
+
+        {pts.map((d, i) => {
+          const g = placed[i];
+          if (!g) return null;
+          const isCorrect = checked && quadrantOf(invCv(g.x), invUq(g.y)) === quadrantOf(d.customerValue, d.uniqueness);
+          const ring = checked ? (isCorrect ? "#059669" : "#dc2626") : "#fff";
+          return (
+            <g key={"guess" + i} onPointerDown={onDown(i)} style={{ cursor: checked ? "default" : "grab" }}>
+              <circle cx={g.x} cy={g.y} r={10} fill={ACCENT} stroke={ring} strokeWidth={2.5} />
+              <text x={g.x} y={g.y} textAnchor="middle" dominantBaseline="central" className="fill-white" style={{ fontSize: 10, fontWeight: 700 }}>
+                {i + 1}
+              </text>
+            </g>
+          );
+        })}
+
+        {trayItems.map((i, k) => {
+          const cx = left + (k + 0.5) * ((right - left) / Math.max(trayItems.length, 4));
+          return (
+            <g key={"tray" + i} onPointerDown={onDown(i)} style={{ cursor: "grab" }}>
+              <circle cx={cx} cy={trayY} r={10} fill="#fff" stroke={ACCENT} strokeWidth={2} strokeDasharray="3,2" />
+              <text x={cx} y={trayY} textAnchor="middle" dominantBaseline="central" style={{ fontSize: 10, fontWeight: 700, fill: ACCENT }}>
                 {i + 1}
               </text>
             </g>
@@ -1305,13 +1398,104 @@ function ValueGrid({ items }) {
           </span>
         ))}
       </div>
+      <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-slate-100">
+        <button
+          type="button"
+          onClick={() => setChecked(true)}
+          disabled={checked}
+          className="rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+          style={{ background: ACCENT }}
+        >
+          Check placement
+        </button>
+        <button
+          type="button"
+          onClick={() => { setPlaced({}); setChecked(false); }}
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold border border-slate-300 text-slate-600 hover:bg-slate-50"
+        >
+          <RotateCcw size={12} /> Reset
+        </button>
+        {!checked && (
+          <button type="button" onClick={() => setChecked(true)} className={revealBtnCls}>
+            Show correct positions
+          </button>
+        )}
+        {checked && <span className="text-xs font-semibold text-slate-600">{score}/{pts.length} correct quadrant</span>}
+      </div>
+      {checked && (
+        <ul className="mt-2 space-y-0.5">
+          {pts.map((d, i) => {
+            const g = placed[i];
+            const actual = quadrantOf(d.customerValue, d.uniqueness);
+            const guessed = g ? quadrantOf(invCv(g.x), invUq(g.y)) : null;
+            const ok = guessed === actual;
+            return (
+              <li key={i} className="text-[11px] text-slate-500">
+                <span className="font-bold" style={{ color: ok ? "#059669" : "#dc2626" }}>{i + 1}.</span>{" "}
+                {guessed ? (ok ? `${actual} — correct` : `You placed it in ${guessed} — it's actually ${actual}.`) : `Not placed — it's ${actual}.`}
+                {!ok && <span className="block pl-4 text-slate-400">{quadrantReason(actual, d)}</span>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
+}
+
+// Picks 4 indices from the pool for the Value Grid game. When the pool has
+// "Cool stuff" items (unique-sounding but low customer value for this case),
+// deliberately includes 1-2 of them as traps — a rep who reflexively leads
+// with the flashiest-sounding capability should get caught misclassifying it.
+function pickSet(pool) {
+  const idx = pool.map((_, i) => i);
+  if (idx.length <= 4) return idx;
+  const cool = idx.filter((i) => {
+    const d = pool[i];
+    return (
+      typeof d.uniqueness === "number" &&
+      typeof d.customerValue === "number" &&
+      quadrantOf(d.customerValue, d.uniqueness) === "Cool stuff"
+    );
+  });
+  const rest = idx.filter((i) => !cool.includes(i));
+  const trapCount = Math.min(cool.length, Math.random() < 0.5 ? 1 : 2);
+  const traps = shuffleArray(cool).slice(0, trapCount);
+  const fillers = shuffleArray(rest).slice(0, 4 - traps.length);
+  return shuffleArray([...traps, ...fillers]);
 }
 
 /* ---------- Competitive ---------- */
 function Competitive({ data }) {
   const c = data.competitive || {};
+  const pool = [...(c.differentiators || []), ...(c.differentiatorPool || [])];
+  const [activeIdx, setActiveIdx] = useState(() => pickSet(pool));
+
+  useEffect(() => {
+    setActiveIdx(pickSet(pool));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c.differentiators, c.differentiatorPool]);
+
+  const reroll = () => {
+    if (pool.length <= 4) return;
+    const current = activeIdx.slice().sort().join(",");
+    let next = activeIdx;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = pickSet(pool);
+      if (candidate.slice().sort().join(",") !== current) {
+        next = candidate;
+        break;
+      }
+    }
+    setActiveIdx(next);
+  };
+
+  const activeItems = activeIdx
+    .map((i) => pool[i])
+    .filter(Boolean)
+    .slice()
+    .sort((a, b) => (b.uniqueness + b.customerValue) - (a.uniqueness + a.customerValue));
+
   return (
     <div className="space-y-6">
       <SectionTitle icon={Swords} sub={`vs. ${data.meta?.competitor || "competition"} · lead with unique value, prove parity elsewhere`}>
@@ -1325,15 +1509,27 @@ function Competitive({ data }) {
         </div>
       )}
 
-      <ValueGrid items={c.differentiators} />
+      <ValueGrid key={activeItems.map((d) => d.title).join("|")} items={activeItems} />
 
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <Lightbulb size={15} style={{ color: ACCENT }} />
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Lead with — high value + unique</span>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Lightbulb size={15} style={{ color: ACCENT }} />
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Lead with — high value + unique</span>
+          </div>
+          {pool.length > 4 && (
+            <button
+              type="button"
+              onClick={reroll}
+              className="flex items-center gap-1.5 text-xs font-semibold rounded-md px-2.5 py-1.5 border border-slate-300 text-slate-600 hover:bg-slate-50"
+              title="Load a different set of 4 capabilities for this case"
+            >
+              <Dices size={13} /> New set
+            </button>
+          )}
         </div>
         <div className="grid md:grid-cols-2 gap-3">
-          {(c.differentiators || []).map((d, i) => (
+          {activeItems.map((d, i) => (
             <div key={i} className="rounded-lg border bg-white p-4" style={{ borderColor: i === 0 ? ACCENT : "#e2e8f0", borderWidth: i === 0 ? 2 : 1 }}>
               <div className="font-semibold text-slate-900 text-sm">
                 <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-white text-[10px] font-bold mr-1.5 align-middle" style={{ background: ACCENT }}>{i + 1}</span>
