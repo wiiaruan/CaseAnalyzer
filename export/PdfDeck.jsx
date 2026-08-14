@@ -66,7 +66,7 @@ function TitleSlide({ customer, industry, stage, competitor }) {
       <View style={{ flex: 1, justifyContent: "center" }}>
         <Image src={LOGO_URL} style={{ width: 140, marginBottom: 28 }} />
         <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: ACCENT, textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 }}>
-          Growth Activator · Case Briefing
+          Solution Activator · Case Briefing
         </Text>
         <Text style={{ fontSize: 40, fontFamily: "Helvetica-Bold", color: TEXT_ON_DARK, marginBottom: 12 }}>{customer || "Customer"}</Text>
         {sub ? <Text style={{ fontSize: 13, color: TEXT_MUTED_ON_DARK }}>{sub}</Text> : null}

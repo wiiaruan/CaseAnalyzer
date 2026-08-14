@@ -1748,11 +1748,11 @@ function UploadScreen({ onFile, onText, onImport, busy, progress, streamProgress
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] mb-3" style={{ color: ACCENT }}>
-            <Sparkles size={12} /> Growth Activator
+            <Sparkles size={12} /> Solution Activator
           </div>
           <h1 className="font-display text-4xl font-bold text-white tracking-tight">Case Analyzer</h1>
           <p className="text-slate-400 text-sm mt-3 leading-relaxed">
-            Drop a customer case PDF and get a Growth Activator briefing: pain
+            Drop a customer case PDF and get a Solution Activator briefing: pain
             chains, vision, quantified value, competitive positioning and an
             opportunity health check.
           </p>
@@ -1933,7 +1933,7 @@ function PrintDeck({ caseFile }) {
         {visibleTabs(caseFile).map((t) => (
           <section key={t.id} className="print-tab">
             <div className="print-tab-header">
-              <span>Growth Activator · Case Briefing</span>
+              <span>Solution Activator · Case Briefing</span>
               <span>{[m.customer, t.label].filter(Boolean).join(" — ")}</span>
             </div>
             <t.comp data={caseFile} />
@@ -2433,7 +2433,7 @@ export default function CaseAnalyzer() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: ACCENT }}>
-                Growth Activator · Case Analyzer
+                Solution Activator · Case Analyzer
               </div>
               <h1 className="font-display text-3xl font-bold tracking-tight mt-1">{m.customer}</h1>
               <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-xs text-slate-300">
