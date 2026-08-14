@@ -19,7 +19,7 @@ reject `additionalProperties` the schema doesn't declare) or the whole call erro
 1. **`backend/server.js` — `CASE_ANALYSIS_SCHEMA`** (starts ~line 155). This is the
    actual `input_schema` passed to the `emit_case_analysis` tool
    (`tools: [{ name: "emit_case_analysis", input_schema: CASE_ANALYSIS_SCHEMA }]`,
-   ~line 521). Every object in it sets `additionalProperties: false` and lists
+   ~line 538). Every object in it sets `additionalProperties: false` and lists
    `required` fields explicitly — add/rename/remove the field here or the API will
    reject the call or drop the field.
 2. **`backend/server.js` — `EXTRACTION_PROMPT`** (starts ~line 25). The prose
@@ -27,17 +27,17 @@ reject `additionalProperties` the schema doesn't declare) or the whole call erro
    specificity rules, the calibration example). The schema object controls shape;
    this controls content quality. Both need the new field described consistently.
    If the field feeds the Health Check re-score path, also check
-   `HEALTH_CHECK_SCHEMA`/`HEALTH_CHECK_PROMPT` (~lines 99, 135).
-3. **`CaseAnalyzer.jsx` — `TABS` array** (~line 1652). Maps a tab id to its display
+   `HEALTH_CHECK_PROMPT`/`HEALTH_CHECK_SCHEMA` (~lines 100, 136).
+3. **`CaseAnalyzer.jsx` — `TABS` array** (~line 1902). Maps a tab id to its display
    component. A new top-level section needs an entry here (or a new field on an
    existing tab's component) or it never renders.
-4. **`CaseAnalyzer.jsx` — `TAB_EDIT_KEYS`** (~line 1757). Maps each tab id to the
+4. **`CaseAnalyzer.jsx` — `TAB_EDIT_KEYS`** (~line 2007). Maps each tab id to the
    top-level case-JSON keys Edit Mode is allowed to touch. A field that exists in the
    schema and renders on-screen but is missing here can be viewed but not edited —
    easy to miss because nothing errors, the Save button just silently doesn't persist
    the change.
-5. **`CaseAnalyzer.jsx` — `migrateCaseFile()`** (~line 233) + **`SCHEMA_VERSION`**
-   (~line 228, currently `5`). Every prior export a user re-opens gets run through
+5. **`CaseAnalyzer.jsx` — `migrateCaseFile()`** (~line 244) + **`SCHEMA_VERSION`**
+   (~line 239, currently `5`). Every prior export a user re-opens gets run through
    this function. A new required field needs a default here so old exports don't
    throw on import; a renamed/restructured field needs the old shape mapped to the
    new one (see the existing `pains[]` migration for the pattern: check
