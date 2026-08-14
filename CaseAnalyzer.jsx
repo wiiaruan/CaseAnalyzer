@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from "react";
 import {
-  Building2, AlertTriangle, Eye, TrendingUp, Swords, ChevronDown,
+  Building2, AlertTriangle, Eye, EyeOff, TrendingUp, Swords, ChevronDown,
   ChevronRight, Flag, Users, Target, CheckCircle2, ArrowRight,
   ShieldAlert, Lightbulb, MessageSquare, Pencil, Download, FileUp, Layers,
   ClipboardList, ClipboardCheck, Gauge, FileText, Upload, Loader2, RotateCcw,
@@ -13,6 +13,17 @@ import {
 // only inside the print-only tree so the printed PDF shows full content
 // instead of the collapsed-by-default screen state.
 const PrintForceOpenContext = createContext(false);
+
+// Facilitator vs. participant view of Training exercises. Set from a header
+// toggle (screen and print share this one source of truth, unlike the
+// collapsed/open accordion state, which print always forces open separately
+// via PrintForceOpenContext). Participant mode hides every "reveal answer"
+// control outright; facilitator mode shows it on screen and auto-reveals it
+// in print, so a printed facilitator key doesn't require clicking every box
+// first (the print render is a separate React mount with its own blank
+// state, so revealed-state alone can't cross over — same reason the
+// accordion needs PrintForceOpenContext).
+const FacilitatorModeContext = createContext(false);
 
 /* ================================================================
    ██  CASE LIBRARY (via local backend)
@@ -889,6 +900,9 @@ function MatchSelect({ value, options, usedElsewhere, onChange, checked, isCorre
 }
 
 function Level1Matching({ ex }) {
+  const facilitatorMode = useContext(FacilitatorModeContext);
+  const printForce = useContext(PrintForceOpenContext);
+  const showFacilitatorKey = facilitatorMode && printForce;
   const [options] = useState(() => shuffleArray([...ex.pairs.map((p) => p.capability), ...(ex.distractors || [])]));
   const [answers, setAnswers] = useState({});
   const [checked, setChecked] = useState(false);
@@ -931,20 +945,50 @@ function Level1Matching({ ex }) {
         <button
           type="button"
           onClick={() => setChecked(true)}
-          className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+          className="rounded-md px-3 py-1.5 text-xs font-semibold text-white print:hidden"
           style={{ background: ACCENT }}
         >
           Check answers
         </button>
         {checked && <span className="text-xs font-semibold text-slate-600">{score}/{ex.pairs.length} correct</span>}
       </div>
+      {/* Facilitator print key: a live dropdown means nothing on paper, so the
+          correct pairing is spelled out as plain text instead — screen-only
+          (no printForce) and participant-mode prints render neither. */}
+      {showFacilitatorKey && (
+        <div className="rounded-md bg-emerald-50 border border-emerald-200 p-2.5 text-xs text-slate-700 space-y-1">
+          <div className="font-bold uppercase tracking-wider text-[10px] text-emerald-700">Facilitator key</div>
+          {ex.pairs.map((p, i) => (
+            <div key={i}>{i + 1}. {p.requirement} → <b>{p.capability}</b></div>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+// Reveal button + answer box shared by Levels 2-4: hidden outright in
+// participant mode (nothing to peek at), shown with a manual toggle on
+// screen in facilitator mode, and force-revealed in print so a facilitator
+// key comes out complete without pre-clicking every exercise first.
+function RevealAnswer({ label, hideLabel, children }) {
+  const facilitatorMode = useContext(FacilitatorModeContext);
+  const printForce = useContext(PrintForceOpenContext);
+  const [revealedState, setRevealed] = useState(false);
+  if (!facilitatorMode) return null;
+  const revealed = revealedState || printForce;
+  return (
+    <>
+      <button type="button" onClick={() => setRevealed((r) => !r)} className={`${revealBtnCls} print:hidden`}>
+        {revealed ? hideLabel : label}
+      </button>
+      {revealed && <div className={answerBoxCls}>{children}</div>}
+    </>
   );
 }
 
 function Level2Derivation({ ex }) {
   const [answer, setAnswer] = useState("");
-  const [revealed, setRevealed] = useState(false);
   return (
     <div className={levelCardCls}>
       <LevelBadge level={2}>Level 2 · Derivation</LevelBadge>
@@ -957,17 +1001,15 @@ function Level2Derivation({ ex }) {
         placeholder="Sketch the solution aloud — which layers, and why…"
         className={textareaCls}
       />
-      <button type="button" onClick={() => setRevealed((r) => !r)} className={revealBtnCls}>
-        {revealed ? "Hide expected answer" : "Reveal expected answer"}
-      </button>
-      {revealed && <div className={answerBoxCls}>{ex.expectedComposition}</div>}
+      <RevealAnswer label="Reveal expected answer" hideLabel="Hide expected answer">
+        {ex.expectedComposition}
+      </RevealAnswer>
     </div>
   );
 }
 
 function Level3Diagnosis({ ex, painDescription, causes }) {
   const [answer, setAnswer] = useState("");
-  const [revealed, setRevealed] = useState(false);
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -987,7 +1029,7 @@ function Level3Diagnosis({ ex, painDescription, causes }) {
         {causes && <div className="text-sm text-slate-600 leading-snug">{causes}</div>}
         {ex.axisHint && <div className="text-[11px] font-semibold text-rose-700">Axis: {ex.axisHint}</div>}
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 print:hidden">
         <button
           type="button"
           onClick={() => setRunning((r) => !r)}
@@ -1005,18 +1047,20 @@ function Level3Diagnosis({ ex, painDescription, causes }) {
         placeholder="Derive the requirements, map the solution across layers, decide where to stop…"
         className={textareaCls}
       />
-      <button type="button" onClick={() => setRevealed((r) => !r)} className={revealBtnCls}>
-        {revealed ? "Hide rubric" : "Reveal rubric"}
-      </button>
-      {revealed && <div className={answerBoxCls}>{ex.rubric}</div>}
+      <RevealAnswer label="Reveal rubric" hideLabel="Hide rubric">
+        {ex.rubric}
+      </RevealAnswer>
     </div>
   );
 }
 
 function Level4Discrimination({ ex }) {
+  const facilitatorMode = useContext(FacilitatorModeContext);
+  const printForce = useContext(PrintForceOpenContext);
   const [choice, setChoice] = useState(null);
   const [justification, setJustification] = useState("");
-  const [revealed, setRevealed] = useState(false);
+  const [revealedState, setRevealed] = useState(false);
+  const revealed = facilitatorMode && (revealedState || printForce);
   const optionCls = (opt) => {
     const base = "text-left rounded-lg border p-3 text-sm flex-1 leading-snug focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400";
     if (!revealed) return `${base} ${choice === opt ? "border-sky-400 bg-sky-50" : "border-slate-200 bg-white hover:bg-slate-50"}`;
@@ -1040,15 +1084,22 @@ function Level4Discrimination({ ex }) {
         placeholder="Justify the choice — the justification is what's marked, not the pick itself…"
         className={textareaCls}
       />
-      <button type="button" onClick={() => setRevealed((r) => !r)} disabled={!choice} className={revealBtnCls}>
-        {revealed ? "Hide answer" : "Reveal answer"}
-      </button>
+      {facilitatorMode && (
+        <button type="button" onClick={() => setRevealed((r) => !r)} disabled={!choice} className={`${revealBtnCls} print:hidden`}>
+          {revealed ? "Hide answer" : "Reveal answer"}
+        </button>
+      )}
       {revealed && <div className={answerBoxCls}>{ex.explanation}</div>}
     </div>
   );
 }
 
 function Training({ data }) {
+  // Print always renders every pain expanded (same pattern as RfiSection /
+  // StakeholderCard) — otherwise a printed handout would only ever show the
+  // first pain's exercises, since `open` starts at a single index.
+  const forceOpen = useContext(PrintForceOpenContext);
+  const facilitatorMode = useContext(FacilitatorModeContext);
   const [open, setOpen] = useState(0);
   const painsWithExercises = (data.pains || [])
     .map((p, i) => ({ p, i }))
@@ -1056,7 +1107,10 @@ function Training({ data }) {
 
   return (
     <div className="space-y-4">
-      <SectionTitle icon={GraduationCap} sub="Level 1-4 exercises for Essential Solution Training participants">
+      <SectionTitle
+        icon={GraduationCap}
+        sub={`Level 1-4 exercises for Essential Solution Training participants · ${facilitatorMode ? "Facilitator view (answers available)" : "Participant view (answers hidden)"}`}
+      >
         Training
       </SectionTitle>
 
@@ -1066,7 +1120,7 @@ function Training({ data }) {
         </div>
       ) : (
         painsWithExercises.map(({ p, i }, k) => {
-          const isOpen = open === k;
+          const isOpen = open === k || forceOpen;
           return (
             <div key={i} className="rounded-lg border border-slate-200 bg-white overflow-hidden">
               <button
@@ -2202,6 +2256,7 @@ export default function CaseAnalyzer() {
   const [libLoading, setLibLoading] = useState(true);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
   const [editMode, setEditMode] = useState(false);
+  const [facilitatorMode, setFacilitatorMode] = useState(false);
   const [hcBusy, setHcBusy] = useState(false);
   const [hcError, setHcError] = useState(null);
 
@@ -2371,6 +2426,7 @@ export default function CaseAnalyzer() {
         }
       `}</style>
 
+      <FacilitatorModeContext.Provider value={facilitatorMode}>
       <div className="no-print min-h-screen bg-slate-100 font-sans text-slate-900">
       <header className="text-white" style={{ background: DARK }}>
         <div className="max-w-5xl mx-auto px-4 pt-5 pb-3">
@@ -2415,6 +2471,19 @@ export default function CaseAnalyzer() {
                 <Download size={13} /> Export JSON
               </button>
               <ExportDeckMenu caseFile={caseFile} />
+              {(caseFile.pains || []).some((p) => p.exercises) && (
+                <button
+                  onClick={() => setFacilitatorMode((v) => !v)}
+                  className={`flex items-center gap-1.5 text-xs font-semibold rounded-md px-2.5 py-1.5 ${
+                    facilitatorMode ? "text-white" : "text-slate-300 hover:text-white hover:bg-white/10"
+                  }`}
+                  style={facilitatorMode ? { background: ACCENT } : undefined}
+                  title="Training tab: show or hide exercise answers, on screen and when printed"
+                >
+                  {facilitatorMode ? <Eye size={13} /> : <EyeOff size={13} />}
+                  {facilitatorMode ? "Facilitator" : "Participant"}
+                </button>
+              )}
               <button
                 onClick={() => window.print()}
                 className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white rounded-md px-2.5 py-1.5 hover:bg-white/10"
@@ -2476,6 +2545,7 @@ export default function CaseAnalyzer() {
       </div>
 
       <PrintDeck caseFile={caseFile} />
+      </FacilitatorModeContext.Provider>
     </>
   );
 }
