@@ -805,6 +805,7 @@ const levelCardCls = "rounded-lg border border-slate-200 p-4 space-y-2.5";
 // glance which exercise (and which of its own rows) they're looking at.
 const LEVEL_BADGE = {
   1: "bg-sky-100 text-sky-700",
+  "1.5": "bg-cyan-100 text-cyan-700",
   2: "bg-amber-100 text-amber-700",
   3: "bg-rose-100 text-rose-700",
   4: "bg-violet-100 text-violet-700",
@@ -834,6 +835,7 @@ function ExerciseBrief({ children }) {
 }
 const DEFAULT_INSTRUCTIONS = {
   1: "Match each requirement on the left to the capability that satisfies it.",
+  "1.5": "For each prompt, name three different answers out loud — don't stop at the first one that fits.",
   2: "Read the customer statement, then say out loud which layers you'd bring together and why — before you check the expected composition.",
   3: "Diagnose the pain, derive the requirements, and map the solution across layers. Time yourself, then compare your answer against the rubric.",
   4: "Pick the option you'd defend to the customer and justify it in writing — the justification is what's graded, not the pick.",
@@ -841,6 +843,11 @@ const DEFAULT_INSTRUCTIONS = {
   6: "Write how the sponsor would describe their own future state once this solution is live, in their own words, not a Milestone pitch — before comparing it to this case's Vision.",
   7: "Turn that vision into a business case: propose a metric, its baseline and target, and the resulting impact, then draft it as an Issue/Action/Value/Check statement — before comparing it to this case's Value section.",
 };
+
+// Capability strings carry a trailing layer tag, e.g. "... (Platform + Extension)",
+// used by the facilitator key. Stripped from the participant-facing dropdown so the
+// tag can't be used to shortcut the matching exercise.
+const stripLayerTag = (s) => s.replace(/\s*\([^)]*\)\s*$/, "");
 
 // Custom listbox for Level 1's matching rows — plain <select> can't grey out
 // an option that another row already claimed, and this is a 1-to-1 matching
@@ -865,7 +872,7 @@ function MatchSelect({ value, options, usedElsewhere, onChange, checked, isCorre
           checked ? (isCorrect ? "border-emerald-400 bg-emerald-50" : "border-red-400 bg-red-50") : "border-slate-300"
         }`}
       >
-        <span className={`leading-snug ${value ? "text-slate-700" : "text-slate-400"}`}>{value || "— choose capability —"}</span>
+        <span className={`leading-snug ${value ? "text-slate-700" : "text-slate-400"}`}>{value ? stripLayerTag(value) : "— choose capability —"}</span>
         <ChevronDown size={14} className="shrink-0 text-slate-400 mt-0.5" />
       </button>
       {open && (
@@ -895,7 +902,7 @@ function MatchSelect({ value, options, usedElsewhere, onChange, checked, isCorre
                 }`}
               >
                 <Check size={12} className={`shrink-0 mt-0.5 ${o === value ? "opacity-100" : "opacity-0"}`} />
-                <span>{o}</span>
+                <span>{stripLayerTag(o)}</span>
               </button>
             );
           })}
@@ -973,7 +980,44 @@ function Level1Matching({ ex }) {
   );
 }
 
-// Reveal button + answer box shared by Levels 2-4: hidden outright in
+// Level 1.5 bridges Matching (1) and Derivation (2): each prompt asks the
+// participant to generate several different answers for one feature or one
+// need, rather than pick from a list (Level 1) or parse a full customer
+// statement (Level 2). Open-ended by design, so it reuses RevealAnswer's
+// facilitator-only reveal instead of Level 1's binary check.
+function Level1_5Transfer({ ex }) {
+  const [answers, setAnswers] = useState({});
+  return (
+    <div className={levelCardCls}>
+      <LevelBadge level="1.5">Level 1.5 · Transfer</LevelBadge>
+      <ExerciseBrief>{ex.instructions || DEFAULT_INSTRUCTIONS["1.5"]}</ExerciseBrief>
+      <div className="space-y-3">
+        {ex.prompts.map((pr, i) => (
+          <div key={i} className="rounded-lg border border-slate-200 bg-cyan-50/60 p-2.5 space-y-2">
+            <div className="text-sm text-slate-700 leading-snug">{pr.prompt}</div>
+            <textarea
+              value={answers[i] || ""}
+              onChange={(e) => setAnswers({ ...answers, [i]: e.target.value })}
+              rows={2}
+              placeholder="Name three different answers…"
+              className={textareaCls}
+            />
+            <RevealAnswer label="Reveal answer bank" hideLabel="Hide answer bank">
+              <div className="space-y-1.5">
+                <ul className="list-disc pl-4 space-y-1">
+                  {pr.answerBank.map((a, j) => <li key={j}>{a}</li>)}
+                </ul>
+                {pr.trapNote && <p className="italic text-slate-600 pt-0.5">{pr.trapNote}</p>}
+              </div>
+            </RevealAnswer>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Reveal button + answer box shared by Level 1.5 and Levels 2-4: hidden outright in
 // participant mode (nothing to peek at), shown with a manual toggle on
 // screen in facilitator mode, and force-revealed in print so a facilitator
 // key comes out complete without pre-clicking every exercise first.
@@ -1232,6 +1276,7 @@ function Training({ data }) {
               {isOpen && (
                 <div className="px-4 pb-4 space-y-3">
                   {p.exercises.level1 && <Level1Matching ex={p.exercises.level1} />}
+                  {p.exercises.level1_5 && <Level1_5Transfer ex={p.exercises.level1_5} />}
                   {p.exercises.level2 && <Level2Derivation ex={p.exercises.level2} />}
                   {p.exercises.level3 && (
                     <Level3Diagnosis ex={p.exercises.level3} painDescription={p.painDescription} causes={p.causes} />
