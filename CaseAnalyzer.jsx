@@ -808,6 +808,9 @@ const LEVEL_BADGE = {
   2: "bg-amber-100 text-amber-700",
   3: "bg-rose-100 text-rose-700",
   4: "bg-violet-100 text-violet-700",
+  5: "bg-teal-100 text-teal-700",
+  6: "bg-indigo-100 text-indigo-700",
+  7: "bg-fuchsia-100 text-fuchsia-700",
 };
 function LevelBadge({ level, children }) {
   return (
@@ -834,6 +837,9 @@ const DEFAULT_INSTRUCTIONS = {
   2: "Read the customer statement, then say out loud which layers you'd bring together and why — before you check the expected composition.",
   3: "Diagnose the pain, derive the requirements, and map the solution across layers. Time yourself, then compare your answer against the rubric.",
   4: "Pick the option you'd defend to the customer and justify it in writing — the justification is what's graded, not the pick.",
+  5: "Looking across this case's pains, sketch ONE account-level solution story: which capabilities you'd bring together and why, not a per-pain feature list — before comparing it to the case's own solution narrative.",
+  6: "Write how the sponsor would describe their own future state once this solution is live, in their own words, not a Milestone pitch — before comparing it to this case's Vision.",
+  7: "Turn that vision into a business case: propose a metric, its baseline and target, and the resulting impact, then draft it as an Issue/Action/Value/Check statement — before comparing it to this case's Value section.",
 };
 
 // Custom listbox for Level 1's matching rows — plain <select> can't grey out
@@ -1094,6 +1100,90 @@ function Level4Discrimination({ ex }) {
   );
 }
 
+// Levels 5-7 are the case-wide capstone: instead of hand-authored exercise
+// content, they reuse the case's own Solution/Vision/Value sections as the
+// model answer, so they work for every case with no per-case authoring.
+function Level5Composition({ pains, narrative }) {
+  const [answer, setAnswer] = useState("");
+  return (
+    <div className={levelCardCls}>
+      <LevelBadge level={5}>Level 5 · Composition</LevelBadge>
+      <ExerciseBrief>{DEFAULT_INSTRUCTIONS[5]}</ExerciseBrief>
+      <div className="rounded-md bg-teal-50 border border-teal-200 p-2.5 space-y-1">
+        {pains.map((p, i) => (
+          <div key={i} className="text-sm text-slate-700 leading-snug">
+            <span className="font-semibold">P{i + 1} — {p.title}.</span> {p.painDescription}
+          </div>
+        ))}
+      </div>
+      <textarea
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        rows={4}
+        placeholder="Sketch the account-level solution — which capabilities across which pains, connected how…"
+        className={textareaCls}
+      />
+      <RevealAnswer label="Reveal solution narrative" hideLabel="Hide solution narrative">
+        {narrative}
+      </RevealAnswer>
+    </div>
+  );
+}
+
+function Level6Vision({ items, playback }) {
+  const [answer, setAnswer] = useState("");
+  return (
+    <div className={levelCardCls}>
+      <LevelBadge level={6}>Level 6 · Vision</LevelBadge>
+      <ExerciseBrief>{DEFAULT_INSTRUCTIONS[6]}</ExerciseBrief>
+      <textarea
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        rows={3}
+        placeholder="Write it as the sponsor would say it themselves, once the solution is live…"
+        className={textareaCls}
+      />
+      <RevealAnswer label="Reveal this case's Vision" hideLabel="Hide Vision">
+        <div className="space-y-1.5">
+          {items.map((it, i) => (
+            <div key={i}><b>{it.title}:</b> {it.detail}</div>
+          ))}
+          {playback && <div className="italic pt-1">“{playback}”</div>}
+        </div>
+      </RevealAnswer>
+    </div>
+  );
+}
+
+function Level7Value({ drivers, statements }) {
+  const [answer, setAnswer] = useState("");
+  return (
+    <div className={levelCardCls}>
+      <LevelBadge level={7}>Level 7 · Value</LevelBadge>
+      <ExerciseBrief>{DEFAULT_INSTRUCTIONS[7]}</ExerciseBrief>
+      <textarea
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        rows={4}
+        placeholder="Propose a metric, baseline, target and $ impact, then draft the Issue/Action/Value/Check statement…"
+        className={textareaCls}
+      />
+      <RevealAnswer label="Reveal this case's Value" hideLabel="Hide Value">
+        <div className="space-y-2.5">
+          {drivers.map((d, i) => (
+            <div key={i}>{d.metric}: {d.baseline} → {d.target} ({d.impact})</div>
+          ))}
+          {statements.map((s, i) => (
+            <div key={`s${i}`} className="pt-1">
+              <b>{s.name}.</b> Issue: {s.issue} Action: {s.action} Value: {s.value} Check: {s.check}
+            </div>
+          ))}
+        </div>
+      </RevealAnswer>
+    </div>
+  );
+}
+
 function Training({ data }) {
   // Print always renders every pain expanded (same pattern as RfiSection /
   // StakeholderCard) — otherwise a printed handout would only ever show the
@@ -1104,12 +1194,18 @@ function Training({ data }) {
   const painsWithExercises = (data.pains || [])
     .map((p, i) => ({ p, i }))
     .filter(({ p }) => p.exercises);
+  const hasCapstone =
+    painsWithExercises.length > 0 &&
+    !!data.solution?.narrative &&
+    (data.vision?.items || []).length > 0 &&
+    (data.value?.drivers || []).length > 0 &&
+    (data.value?.statements || []).length > 0;
 
   return (
     <div className="space-y-4">
       <SectionTitle
         icon={GraduationCap}
-        sub={`Level 1-4 exercises for Essential Solution Training participants · ${facilitatorMode ? "Facilitator view (answers available)" : "Participant view (answers hidden)"}`}
+        sub={`Level 1-7 exercises for Essential Solution Training participants · ${facilitatorMode ? "Facilitator view (answers available)" : "Participant view (answers hidden)"}`}
       >
         Training
       </SectionTitle>
@@ -1146,6 +1242,22 @@ function Training({ data }) {
             </div>
           );
         })
+      )}
+
+      {hasCapstone && (
+        <div className="pt-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles size={14} className="text-slate-400" />
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Case capstone — Composition → Vision → Value
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+            <Level5Composition pains={data.pains} narrative={data.solution.narrative} />
+            <Level6Vision items={data.vision.items} playback={data.vision.playback} />
+            <Level7Value drivers={data.value.drivers} statements={data.value.statements} />
+          </div>
+        </div>
       )}
     </div>
   );
