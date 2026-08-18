@@ -134,6 +134,100 @@ it:
   Camera Station (small single-site), Hanwha/Bosch BVMS/Honeywell (where regionally
   strong).
 
+**Caveat on this table's source**: it's calibrated partly against Milestone's own
+published customer-success stories. Those stories skew heavily toward analog/legacy
+replacement, greenfield builds, or the customer expanding an *existing* Milestone
+deployment — a named-competitor VMS being displaced is rare in what Milestone
+chooses to publish (survivorship bias, not a signal that competitor displacement is
+rare in real deals). Don't let this table's "infer a competitor" guidance soften for
+**training material**, where [[current-system-not-milestone]] still applies — that
+rule exists precisely because reps need practice against a competitor, which real
+published cases underrepresent.
+
+### Additional verticals (calibrated against ~55 published Milestone case studies, 2026-08-18)
+
+The table above covers the common verticals; these are less-common ones worth the
+same discipline, with realistic ranges pulled from real published cases:
+
+- **Public safety / municipal command center** — scale tracks command-center
+  maturity more than city population: community safety network 50-300 cameras;
+  mid-size city (200-500k pop) unifying analog sprawl 1,500-3,000+; US real-time
+  crime center 400-800 municipal + registered-private cameras; critical-infra
+  corridor (tunnels/bridges) tens-to-low-hundreds. Regulation: EU Tunnel Safety
+  Directive 2004/54/EC for road tunnels, GDPR (EU), CJIS (US) — Latin American
+  cases typically cite no named regulation. Competitor: generic "legacy analog CCTV
+  / siloed municipal cameras," rarely a named VMS brand.
+- **Smart city / government platform** — single government facility ~20-25
+  cameras floor; small/mid US city cloud-first 250-1,400; regional European city
+  100-300+ (roadmap 1,000+); large metro/port city 2,000-2,700+; national
+  capital/ministry-grade 2,500+. Regulation: EU AI Act (AI training-data
+  traceability), FEMA/DHS polling-place assessment (US election security), Italy's
+  Three-Year Plan for IT in Public Administration, EU ITS/road-safety directives.
+  Competitor: almost never named — these are self-modernization stories.
+- **Ports / maritime** — major seaport ~150-300 cameras; regional port ~50-150.
+  Regulation: likely ISPS Code / NIS2 for cyber — not explicitly named in published
+  cases, treat as inferred, not confirmed. No named competitor; authority-managed
+  legacy or greenfield.
+- **Airports** — split by tier: small regional/general-aviation ~150-300; twin or
+  multi-site regional-international ~400-800; large hub keeps the existing
+  1,000-3,000. Camera-count is often reported per-subsystem (e.g. only the
+  perimeter-radar cameras), not the airport total — don't assume a silent total.
+- **Multi-tenant retail / mall** — neighborhood mall ~50-150 cameras; large
+  mixed-use precinct (retail + hotel + museum) 800-1,500+; a shopping-centre
+  *portfolio* (multiple malls, one operator) can reach 10,000+ nationally.
+- **Banking — ATM managed-service** — a distinct pattern from branch security: a
+  third-party MSSP centrally operates XProtect across many client ATM sites
+  (~1 camera + 1 intercom + door-access unit per ATM). PCI DSS is inferred, not
+  something published cases actually cite by name — don't force the citation.
+- **Senior living / continuing-care campus** — ~500-1,500 residents, 80-150
+  cameras for a large campus. Regulation: state assisted-living licensing/life-safety
+  code, not HIPAA (these aren't clinical-record environments).
+- **Medical-device / FDA-regulated manufacturing** — large multi-site medtech
+  ~900+ cameras across 5+ global sites. Regulation: FDA/GMP for the production
+  floor, alongside whatever the site's home country adds.
+- **Multi-site industrial / FMCG manufacturing** — refine the general "logistics
+  hub ~150-500": single-line/single-factory ~10-50 cameras; large multi-country
+  industrial group 300-700+ across 5+ sites; multi-site food/CPG manufacturer
+  ~15-40 cameras per site across 3-5 sites. Most industrial cases cite **no named
+  regulation at all** — "efficiency/safety-driven, not compliance-driven" is a
+  legitimate industrial profile; don't force a regulation into every case. Trade
+  compliance (e.g. AEO/Authorized Economic Operator customs certification with a
+  retention-length requirement) is a real but under-used regulatory hook here.
+- **Remote / unmanned-site monitoring** — a value-driver pattern that cuts across
+  verticals (power generation, water/dam infrastructure, remote industrial sites):
+  the core metric is travel/headcount cost avoidance from not physically dispatching
+  staff, not incident-detection rate. Look for this shape whenever a case involves
+  geographically dispersed unmanned sites.
+- **Live events / festivals / motorsport venues** — temporary/seasonal
+  infrastructure: multi-day festival (~40k attendees) ~60 cameras; motorsport venue
+  (50-70k capacity) ~25 fixed + mobile push cameras. Staffing swings enormously
+  (single digits routine → 1,000+ during the event) — a distinct pain shape from
+  fixed-site security. Regulation: crowd-density/fire-code constraints, rarely a
+  named formal code.
+- **Ski resort / cableway (mountain leisure)** — mid-size Alpine resort: 13-25
+  lifts, 100+ cameras. Regulation nuance: some jurisdictions split retention by
+  operator on the *same shared platform* (e.g. municipal footage 7 days vs private
+  operator 24 hours) — a real multi-tenant-privacy pattern worth using in
+  discrimination material.
+- **Museum / heritage site** — museum-scale ~100+ cameras. Driver is
+  vandalism/heritage-preservation, a category distinct from generic "security."
+- **Residential / smart-building virtual concierge (MSSP)** — an MSSP builds a
+  *service business* on XProtect rather than an end-customer securing its own site:
+  large portfolio example ~400+ buildings, ~30k residents, 6,500+ cameras run from
+  one remote SOC. Prior state is almost always staffed on-site guards or manual
+  logs/phone verification, not a competitor VMS.
+- **Education refinements** — regional/non-flagship university can run as low as
+  ~80-150 cameras (below the general "university campus" floor); private
+  international K-12 runs a much denser camera-per-student ratio than a public
+  district; a large US public K-12 district can reach city-surveillance scale
+  (1,000+ cameras); pupil transportation/fleet (buses, up to ~4 cameras/vehicle,
+  synced via Interconnect) is its own sub-vertical. US K-12 capital security
+  projects are commonly funded via voter-approved bond measures — a distinct
+  economic-buyer/procurement pattern worth using in MEDDIC-style training content.
+  FERPA/Clery/Title IX/GDPR are rarely named explicitly even in cases where they'd
+  clearly apply — keep them as plausible inferred citations, not evidence-required
+  facts.
+
 **Current-system rule** (training material, [[current-system-not-milestone]] in
 memory): the seller must practice displacing a competitor or winning a net-new VMS.
 Unless the source explicitly says the customer already runs Milestone/XProtect, the
