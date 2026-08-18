@@ -807,7 +807,9 @@ const LEVEL_BADGE = {
   1: "bg-sky-100 text-sky-700",
   "1.5": "bg-cyan-100 text-cyan-700",
   2: "bg-amber-100 text-amber-700",
+  "2.5": "bg-orange-100 text-orange-700",
   3: "bg-rose-100 text-rose-700",
+  "3.5": "bg-pink-100 text-pink-700",
   4: "bg-violet-100 text-violet-700",
   5: "bg-teal-100 text-teal-700",
   6: "bg-indigo-100 text-indigo-700",
@@ -837,7 +839,9 @@ const DEFAULT_INSTRUCTIONS = {
   1: "Match each requirement on the left to the capability that satisfies it.",
   "1.5": "For each prompt, name three different answers out loud — don't stop at the first one that fits.",
   2: "Read the customer statement, then say out loud which layers you'd bring together and why — before you check the expected composition.",
+  "2.5": "Given the requirements as stated, mark which capabilities belong in the solution and justify each inclusion and rejection in one sentence — watch for the capability that over-reaches and the requirement quietly left uncovered.",
   3: "Diagnose the pain, derive the requirements, and map the solution across layers. Time yourself, then compare your answer against the rubric.",
+  "3.5": "Restate the composed solution as this stakeholder's own future state, in their voice, with zero product or feature names — before comparing it to the weak and strong answers.",
   4: "Pick the option you'd defend to the customer and justify it in writing — the justification is what's graded, not the pick.",
   5: "Looking across this case's pains, sketch ONE account-level solution story: which capabilities you'd bring together and why, not a per-pain feature list — before comparing it to the case's own solution narrative.",
   6: "Write how the sponsor would describe their own future state once this solution is live, in their own words, not a Milestone pitch — before comparing it to this case's Vision.",
@@ -1058,6 +1062,88 @@ function Level2Derivation({ ex }) {
   );
 }
 
+// Level 2.5 bridges Derivation (2) and Diagnosis (3): the requirements are
+// given rather than derived, isolating just the composition skill — picking
+// the right sum of capabilities across layers without over- or
+// under-engineering — before Level 3 demands deriving the requirements too.
+function Level2_5Composition({ ex }) {
+  const facilitatorMode = useContext(FacilitatorModeContext);
+  const printForce = useContext(PrintForceOpenContext);
+  const showFacilitatorKey = facilitatorMode && printForce;
+  const [items] = useState(() => shuffleArray(ex.bank));
+  const [picked, setPicked] = useState({});
+  const [notes, setNotes] = useState({});
+  const [checked, setChecked] = useState(false);
+  const score = items.filter((it, i) => !!picked[i] === (it.status !== "distractor")).length;
+
+  return (
+    <div className={levelCardCls}>
+      <LevelBadge level="2.5">Level 2.5 · Composition</LevelBadge>
+      <ExerciseBrief>{ex.instructions || DEFAULT_INSTRUCTIONS["2.5"]}</ExerciseBrief>
+      <div className="rounded-md bg-orange-50 border border-orange-200 p-2.5 space-y-1">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-orange-700">Given requirements</div>
+        {ex.requirements.map((r, i) => (
+          <div key={i} className="text-sm text-slate-700 leading-snug">
+            <b>{r.id}.</b> {r.requirement}
+            {r.axis && <span className="text-xs text-slate-400"> ({r.axis})</span>}
+          </div>
+        ))}
+      </div>
+      <div className="space-y-1.5">
+        {items.map((it, i) => {
+          const shouldPick = it.status !== "distractor";
+          const rowChecked = checked && !!picked[i] === shouldPick;
+          return (
+            <div
+              key={i}
+              className={`rounded-lg border p-2.5 space-y-1.5 ${
+                checked ? (rowChecked ? "border-emerald-300 bg-emerald-50/50" : "border-red-300 bg-red-50/50") : "border-slate-200 bg-slate-50/70"
+              }`}
+            >
+              <label className="flex items-start gap-2 text-sm text-slate-700 leading-snug cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!picked[i]}
+                  onChange={() => { setPicked({ ...picked, [i]: !picked[i] }); setChecked(false); }}
+                  className="mt-0.5 shrink-0"
+                />
+                <span>{it.capability}</span>
+              </label>
+              <textarea
+                value={notes[i] || ""}
+                onChange={(e) => setNotes({ ...notes, [i]: e.target.value })}
+                rows={1}
+                placeholder="One-sentence justification…"
+                className={textareaCls}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setChecked(true)}
+          className="rounded-md px-3 py-1.5 text-xs font-semibold text-white print:hidden"
+          style={{ background: ACCENT }}
+        >
+          Check answers
+        </button>
+        {checked && <span className="text-xs font-semibold text-slate-600">{score}/{items.length} correct</span>}
+      </div>
+      <RevealAnswer label="Reveal facilitator key" hideLabel="Hide facilitator key">
+        <div className="space-y-1.5">
+          {ex.bank.map((it, i) => (
+            <div key={i}>
+              <b>{it.status === "distractor" ? "Reject" : "Include"}</b> — {it.capability}: {it.note}
+            </div>
+          ))}
+        </div>
+      </RevealAnswer>
+    </div>
+  );
+}
+
 function Level3Diagnosis({ ex, painDescription, causes }) {
   const [answer, setAnswer] = useState("");
   const [running, setRunning] = useState(false);
@@ -1099,6 +1185,39 @@ function Level3Diagnosis({ ex, painDescription, causes }) {
       />
       <RevealAnswer label="Reveal rubric" hideLabel="Hide rubric">
         {ex.rubric}
+      </RevealAnswer>
+    </div>
+  );
+}
+
+// Level 3.5 opens the second, sales-register track (scopes 3-5 in the
+// training-intent model): not a bridge between two precise levels but a
+// voice/translation exercise — restate the already-composed solution
+// (Level 2.5's output) as the stakeholder's own future-state Vision, zero
+// product names. Reuses RevealAnswer for the weak/strong worked pair instead
+// of a binary check, since the marking is a rubric, not a right answer.
+function Level3_5VisionFraming({ ex }) {
+  const [answer, setAnswer] = useState("");
+  return (
+    <div className={levelCardCls}>
+      <LevelBadge level="3.5">Level 3.5 · Vision Framing</LevelBadge>
+      <ExerciseBrief>{ex.instructions || DEFAULT_INSTRUCTIONS["3.5"]}</ExerciseBrief>
+      <div className="rounded-md bg-pink-50 border border-pink-200 p-2.5 space-y-1.5 text-sm text-slate-700 leading-snug">
+        <div><span className="font-semibold">Composed solution:</span> {ex.composedSolution.join(", ")}</div>
+        <div><span className="font-semibold">{ex.stakeholderTitle}'s stake:</span> {ex.stakeholderStake}</div>
+      </div>
+      <textarea
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        rows={3}
+        placeholder="Write it in the stakeholder's own voice, 2-3 sentences, zero product names…"
+        className={textareaCls}
+      />
+      <RevealAnswer label="Reveal weak vs. strong answers" hideLabel="Hide weak vs. strong answers">
+        <div className="space-y-2">
+          <div><b>Weak:</b> “{ex.weakAnswer}” — {ex.weakWhy}</div>
+          <div><b>Strong ({ex.stakeholderTitle}'s voice):</b> “{ex.strongAnswer}” — {ex.strongWhy}</div>
+        </div>
       </RevealAnswer>
     </div>
   );
@@ -1278,9 +1397,11 @@ function Training({ data }) {
                   {p.exercises.level1 && <Level1Matching ex={p.exercises.level1} />}
                   {p.exercises.level1_5 && <Level1_5Transfer ex={p.exercises.level1_5} />}
                   {p.exercises.level2 && <Level2Derivation ex={p.exercises.level2} />}
+                  {p.exercises.level2_5 && <Level2_5Composition ex={p.exercises.level2_5} />}
                   {p.exercises.level3 && (
                     <Level3Diagnosis ex={p.exercises.level3} painDescription={p.painDescription} causes={p.causes} />
                   )}
+                  {p.exercises.level3_5 && <Level3_5VisionFraming ex={p.exercises.level3_5} />}
                   {p.exercises.level4 && <Level4Discrimination ex={p.exercises.level4} />}
                 </div>
               )}
